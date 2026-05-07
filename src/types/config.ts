@@ -44,6 +44,13 @@ export type SubMod = {
   loadModBefore: string[];
   loadModAfter: string[];
   incompatible: string[];
+  author: string;
+  url: string;
+  modversion: string;
+  pack: string[];
+  tiledef: string[];
+  versionMin: string;
+  versionMax: string;
 };
 
 export type WorkshopItem = {

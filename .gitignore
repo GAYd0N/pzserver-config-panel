@@ -4,3 +4,5 @@ dist/
 test_configs/
 paths-config.json
 servers-config.json
+yarn.lock
+pnpm-lock.yaml

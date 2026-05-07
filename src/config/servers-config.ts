@@ -1,4 +1,4 @@
-import { basename, isAbsolute } from "node:path";
+import { basename, isAbsolute, resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { AppError } from "../errors/app-error.js";
 import type { ServerInstance, ServersConfig, ServerGlobalConfig } from "../types/server.js";
@@ -58,6 +58,13 @@ function isValidIniPath(iniPath: string): boolean {
 
 function isValidStartScriptPath(scriptPath: string): boolean {
   return isAbsolute(scriptPath);
+}
+
+function quotePath(path: string): string {
+  if (path.includes(" ") && !path.startsWith('"')) {
+    return `"${path}"`;
+  }
+  return path;
 }
 
 function ensureValidIniPath(iniPath: string, fieldName: string): void {
@@ -527,10 +534,13 @@ export async function loadServersConfig(
   const legacyConfig = normalizeLegacyPathsConfig(rawLegacyConfig);
   const migratedConfig = createMigratedConfig(legacyConfig, options.cliConfigPath);
 
-  if (rawLegacyConfig !== null || migratedConfig.servers.length > 0) {
-    await writeServersConfigFile(migratedConfig, serversConfigPath);
+  if (migratedConfig.servers.length === 0) {
+    const dummyIniPath = resolve("dev-data", "dummy.ini");
+    const usedIds = new Set<string>();
+    migratedConfig.servers.push(createServerFromIniPath(dummyIniPath, usedIds));
   }
 
+  await writeServersConfigFile(migratedConfig, serversConfigPath);
   return migratedConfig;
 }
 
@@ -550,6 +560,7 @@ export function generateServerId(name: string, existingIds: Set<string>): string
 }
 
 export function buildStartCommand(globalConfig: ServerGlobalConfig, server: ServerInstance): string {
+  const scriptPath = quotePath(globalConfig.startScriptPath);
   const args = server.startArgs.join(" ");
-  return `${globalConfig.startScriptPath} ${args}`.trim();
+  return `${scriptPath} ${args}`.trim();
 }

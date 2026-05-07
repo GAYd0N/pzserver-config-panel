@@ -1,5 +1,6 @@
 import {
   spawn,
+  execSync,
   type ChildProcessWithoutNullStreams,
   type SpawnOptionsWithoutStdio,
 } from "node:child_process";
@@ -449,6 +450,16 @@ export class ServerRuntimeManager {
     }
 
     const pid = child.pid;
+
+    if (process.platform === "win32") {
+      try {
+        const force = signal === "SIGKILL" ? " /F" : "";
+        execSync(`taskkill /PID ${pid} /T${force}`, { windowsHide: true });
+        return;
+      } catch {
+        // no-op
+      }
+    }
 
     try {
       process.kill(-pid, signal);

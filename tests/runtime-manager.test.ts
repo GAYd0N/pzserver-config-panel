@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import { ServerRuntimeManager } from "../src/runtime/manager.js";
 import type { ServerInstance, ServerGlobalConfig } from "../src/types/server.js";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
 const STOP_OPTIONS = {
   stopGraceTimeoutMs: 100,
@@ -19,10 +21,40 @@ function createServer(overrides: Partial<ServerInstance>): ServerInstance {
     id: "server",
     name: "server",
     iniPath: "/tmp/server.ini",
-    startArgs: ["-e", "setInterval(() => {}, 1000)"],
+    startArgs: ["-e", "console.log('hello')"],
     stopCommands: ["save", "quit"],
     ...overrides,
   };
+}
+
+function createFakeProcess(): ChildProcessWithoutNullStreams & { simulateExit: (code: number, signal: null) => void } {
+  const proc = new EventEmitter() as unknown as ChildProcessWithoutNullStreams & { simulateExit: (code: number, signal: null) => void };
+  proc.pid = 12345;
+  proc.exitCode = 0;
+  proc.signalCode = null;
+  proc.killed = false;
+  proc.stdout = new EventEmitter() as any;
+  proc.stderr = new EventEmitter() as any;
+  proc.stdin = {
+    destroyed: false,
+    writable: true,
+    write: vi.fn((_data: string, cb?: (err: Error | null) => void) => {
+      if (cb) process.nextTick(() => cb(null));
+      return true;
+    }),
+  } as any;
+
+  proc.simulateExit = (code: number, signal: null) => {
+    proc.exitCode = code;
+    proc.signalCode = signal;
+    proc.emit("exit", code, signal);
+  };
+
+  return proc;
+}
+
+function createSpawnMock(proc: ReturnType<typeof createFakeProcess>) {
+  return vi.fn(() => proc);
 }
 
 describe("ServerRuntimeManager", () => {
@@ -53,7 +85,10 @@ describe("ServerRuntimeManager", () => {
   });
 
   it("enforces single-active runtime control", async () => {
-    const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
+    const procA = createFakeProcess();
+    const spawnMock = createSpawnMock(procA);
+    const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
+
     const serverA = createServer({ id: "a", name: "A" });
     const serverB = createServer({ id: "b", name: "B" });
 
@@ -72,7 +107,10 @@ describe("ServerRuntimeManager", () => {
   });
 
   it("rejects duplicate start on same server", async () => {
-    const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
+    const proc = createFakeProcess();
+    const spawnMock = createSpawnMock(proc);
+    const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
+
     const server = createServer({ id: "main", name: "Main" });
 
     await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
@@ -96,14 +134,18 @@ describe("ServerRuntimeManager", () => {
   });
 
   it("marks immediate start exit as PROCESS_SPAWN_FAILED", async () => {
-    const manager = new ServerRuntimeManager({ startupProbeMs: 120 });
-    const server = createServer({
-      id: "failing",
-      name: "Failing",
-      startArgs: ["-e", "process.exit(1)"],
-    });
+    const proc = createFakeProcess();
+    proc.exitCode = null;
+    const spawnMock = createSpawnMock(proc);
+    const manager = new ServerRuntimeManager({ startupProbeMs: 120, spawnProcess: spawnMock });
 
-    await expect(manager.startServer(server, DEFAULT_GLOBAL_CONFIG)).rejects.toMatchObject({
+    const server = createServer({ id: "failing", name: "Failing" });
+
+    const startPromise = manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+
+    proc.simulateExit(1, null);
+
+    await expect(startPromise).rejects.toMatchObject({
       code: "PROCESS_SPAWN_FAILED",
       status: 500,
     });
@@ -116,16 +158,16 @@ describe("ServerRuntimeManager", () => {
 
   describe("Terminal functionality", () => {
     it("should record stdout to terminal buffer", async () => {
-      const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
-      const server = createServer({
-        id: "echo",
-        name: "Echo",
-        startArgs: ["-e", "console.log('hello world'); setInterval(() => {}, 1000)"],
-      });
+      const proc = createFakeProcess();
+      const spawnMock = createSpawnMock(proc);
+      const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
 
-      await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+      const server = createServer({ id: "echo", name: "Echo" });
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      const startPromise = manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+      await new Promise((r) => setTimeout(r, 100));
+      proc.stdout.emit("data", Buffer.from("hello world\n"));
+      await startPromise;
 
       const history = manager.getTerminalHistory("echo");
       expect(history.length).toBeGreaterThan(0);
@@ -135,16 +177,16 @@ describe("ServerRuntimeManager", () => {
     });
 
     it("should record stderr to terminal buffer", async () => {
-      const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
-      const server = createServer({
-        id: "stderr",
-        name: "Stderr",
-        startArgs: ["-e", "console.error('error message'); setInterval(() => {}, 1000)"],
-      });
+      const proc = createFakeProcess();
+      const spawnMock = createSpawnMock(proc);
+      const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
 
-      await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+      const server = createServer({ id: "stderr", name: "Stderr" });
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      const startPromise = manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+      await new Promise((r) => setTimeout(r, 100));
+      proc.stderr.emit("data", Buffer.from("error message\n"));
+      await startPromise;
 
       const history = manager.getTerminalHistory("stderr");
       expect(history.length).toBeGreaterThan(0);
@@ -154,12 +196,11 @@ describe("ServerRuntimeManager", () => {
     });
 
     it("should notify terminal listeners", async () => {
-      const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
-      const server = createServer({
-        id: "notify",
-        name: "Notify",
-        startArgs: ["-e", "console.log('test'); setInterval(() => {}, 1000)"],
-      });
+      const proc = createFakeProcess();
+      const spawnMock = createSpawnMock(proc);
+      const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
+
+      const server = createServer({ id: "notify", name: "Notify" });
 
       const receivedLines: any[] = [];
       const listener = (line: any) => {
@@ -167,24 +208,25 @@ describe("ServerRuntimeManager", () => {
       };
 
       manager.subscribeTerminal("notify", listener);
-      await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      const startPromise = manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+      await new Promise((r) => setTimeout(r, 100));
+      proc.stdout.emit("data", Buffer.from("hello notifier\n"));
+      await startPromise;
 
       expect(receivedLines.length).toBeGreaterThan(0);
-      expect(receivedLines.some((line) => line.text.includes("test"))).toBe(true);
+      expect(receivedLines.some((line: any) => line.text.includes("hello notifier"))).toBe(true);
 
       manager.unsubscribeTerminal("notify", listener);
       await manager.stopServer(server, STOP_OPTIONS);
     });
 
     it("should send commands to running server", async () => {
-      const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
-      const server = createServer({
-        id: "commands",
-        name: "Commands",
-        startArgs: ["-e", "const rl=require('readline').createInterface({input:process.stdin});rl.on('line',l=>console.log('ECHO:',l));setInterval(()=>{},1000)"],
-      });
+      const proc = createFakeProcess();
+      const spawnMock = createSpawnMock(proc);
+      const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
+
+      const server = createServer({ id: "commands", name: "Commands" });
 
       await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
 
@@ -192,8 +234,6 @@ describe("ServerRuntimeManager", () => {
 
       expect(result.successCount).toBe(2);
       expect(result.errors).toHaveLength(0);
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const history = manager.getTerminalHistory("commands");
       expect(history.some((line) => line.text.includes("> hello"))).toBe(true);
@@ -212,12 +252,17 @@ describe("ServerRuntimeManager", () => {
     });
 
     it("should return batch result with errors for failed lines", async () => {
-      const manager = new ServerRuntimeManager({ startupProbeMs: 80 });
-      const server = createServer({
-        id: "batch",
-        name: "Batch",
-        startArgs: ["-e", "process.stdin.on('data', d => console.log(d.toString())); setInterval(() => {}, 1000)"],
+      const proc = createFakeProcess();
+      const stdinWrite = vi.fn((_data: string, cb?: (err: Error | null) => void) => {
+        if (cb) process.nextTick(() => cb(null));
+        return true;
       });
+      proc.stdin.write = stdinWrite;
+
+      const spawnMock = createSpawnMock(proc);
+      const manager = new ServerRuntimeManager({ startupProbeMs: 80, spawnProcess: spawnMock });
+
+      const server = createServer({ id: "batch", name: "Batch" });
 
       await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
 

@@ -9,6 +9,7 @@ import {
 } from "./routes/index.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { ServerRuntimeManager } from "./runtime/manager.js";
+import { loadServersConfig } from "./config/servers-config.js";
 
 type StartupOptions = {
   configPath?: string;
@@ -106,11 +107,18 @@ app.use("/api", createTerminalCommandsRouter());
 
 app.use(errorHandler);
 
-app.listen(startupOptions.port, HOST, () => {
-  if (startupOptions.configPath) {
-    console.log(`Config file: ${startupOptions.configPath}`);
-  }
-  console.log(
-    `pzserver-config-panel listening on http://${HOST}:${startupOptions.port}`,
-  );
+(async () => {
+  await loadServersConfig({ cliConfigPath: startupOptions.configPath || "" });
+
+  app.listen(startupOptions.port, HOST, () => {
+    if (startupOptions.configPath) {
+      console.log(`Config file: ${startupOptions.configPath}`);
+    }
+    console.log(
+      `pzserver-config-panel listening on http://${HOST}:${startupOptions.port}`,
+    );
+  });
+})().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });

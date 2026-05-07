@@ -64,6 +64,13 @@ function parseModInfo(content: string, folderPath: string, workshopRootPath: str
     if (key === "loadModBefore") result.loadModBefore = value;
     if (key === "loadModAfter") result.loadModAfter = value;
     if (key === "incompatible") result.incompatible = value;
+    if (key === "author") result.author = value;
+    if (key === "url") result.url = value;
+    if (key === "modversion") result.modversion = value;
+    if (key === "pack") result.pack = value;
+    if (key === "tiledef") result.tiledef = value;
+    if (key === "versionMin") result.versionMin = value;
+    if (key === "versionMax") result.versionMax = value;
   }
 
   if (!result.name || !result.id) return null;
@@ -72,18 +79,31 @@ function parseModInfo(content: string, folderPath: string, workshopRootPath: str
   const iconRel = resolveRelativePath(workshopRootPath, folderPath, result.icon ?? "");
   const rootAbs = resolve(workshopRootPath);
 
+  const modId = result.id;
+  const requireList = parseCommaList(result.require ?? "").filter((s) => s !== modId);
+  const loadModBeforeList = parseCommaList(result.loadModBefore ?? "").filter((s) => s !== modId);
+  const loadModAfterList = parseCommaList(result.loadModAfter ?? "").filter((s) => s !== modId);
+  const incompatibleList = parseCommaList(result.incompatible ?? "").filter((s) => s !== modId);
+
   return {
     name: result.name,
-    id: result.id,
+    id: modId,
     description: result.description ?? "",
     poster: posterRel,
     icon: iconRel,
     path: toUrlPath(relative(rootAbs, resolve(folderPath))),
-    require: parseCommaList(result.require ?? ""),
+    require: requireList,
     category: parseCommaList(result.category ?? ""),
-    loadModBefore: parseCommaList(result.loadModBefore ?? ""),
-    loadModAfter: parseCommaList(result.loadModAfter ?? ""),
-    incompatible: parseCommaList(result.incompatible ?? ""),
+    loadModBefore: loadModBeforeList,
+    loadModAfter: loadModAfterList,
+    incompatible: incompatibleList,
+    author: result.author ?? "",
+    url: result.url ?? "",
+    modversion: result.modversion ?? "",
+    pack: parseCommaList(result.pack ?? ""),
+    tiledef: parseCommaList(result.tiledef ?? ""),
+    versionMin: result.versionMin ?? "",
+    versionMax: result.versionMax ?? "",
   };
 }
 

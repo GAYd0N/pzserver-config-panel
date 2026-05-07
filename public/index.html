@@ -5,143 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PZ Server Manager</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    /* V2.1 新增样式 */
-    .back-button {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      transition: all 0.3s;
-    }
-    
-    .back-button:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-    
-    .header-server-name {
-      color: #fff;
-      font-size: 16px;
-      font-weight: 500;
-    }
-    
-    .instance-info-section {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-    
-    .instance-info-section h3 {
-      color: #fff;
-      margin: 0 0 16px 0;
-      font-size: 16px;
-    }
-    
-    .instance-info-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .instance-info-item:last-child {
-      border-bottom: none;
-    }
-    
-    .instance-info-label {
-      color: rgba(255, 255, 255, 0.5);
-      font-size: 14px;
-    }
-    
-    .instance-info-value {
-      color: #fff;
-      font-size: 14px;
-      font-family: monospace;
-      word-break: break-all;
-      max-width: 60%;
-      text-align: right;
-    }
-    
-    .global-config-section {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 20px;
-      margin-top: 20px;
-    }
-    
-    .global-config-section h3 {
-      color: #fff;
-      margin: 0 0 16px 0;
-      font-size: 16px;
-    }
-    
-    .paths-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-    }
-    
-    @media (min-width: 768px) {
-      .paths-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-    
-    .path-item {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    
-    .path-label {
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 14px;
-    }
-    
-    .path-input {
-      padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
-      color: #fff;
-      font-size: 14px;
-    }
-    
-    .path-input:focus {
-      outline: none;
-      border-color: #4a9eff;
-    }
-    
-    .path-description {
-      color: rgba(255, 255, 255, 0.4);
-      font-size: 12px;
-    }
-    
-    .save-paths-btn {
-      margin-top: 20px;
-      background: linear-gradient(135deg, #4a9eff, #00d4aa);
-      border: none;
-      color: #fff;
-      padding: 12px 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    
-    .save-paths-btn:hover {
-      transform: scale(1.02);
-    }
-  </style>
 </head>
 <body>
   <header>
@@ -161,6 +24,9 @@
       </span>
     </div>
     <div class="header-right">
+      <button id="themeToggle" class="theme-toggle" title="切换深浅色">
+        <span id="themeToggleIcon">🌙</span>
+      </button>
       <a href="https://github.com/g0g5/pzserver-config-panel" target="_blank" rel="noopener noreferrer" class="github-button">GitHub</a>
       <button id="saveButton" class="save-button">保存配置</button>
     </div>
@@ -175,7 +41,6 @@
     </div>
 
     <div class="tab-content active" id="console-tab">
-      <!-- 控制面板 -->
       <div class="control-panel" id="controlPanel">
         <div class="control-header">
           <span id="selectedServerStatus" class="server-status-badge">--</span>
@@ -204,7 +69,6 @@
         </div>
       </div>
 
-      <!-- 终端区域 -->
       <div class="terminal-section">
         <div class="terminal-header">
           <h3>终端日志</h3>
@@ -280,10 +144,6 @@
                 <button class="add-button" data-type="Map">添加</button>
               </div>
               <div id="mapList" class="list-editor"></div>
-              <div id="availableMapsSection" class="available-maps-section" style="display:none;">
-                <div class="available-maps-header">快速添加地图</div>
-                <div id="availableMapsList" class="available-maps-list"></div>
-              </div>
             </div>
           </section>
         </div>
@@ -291,7 +151,6 @@
     </div>
 
     <div class="tab-content" id="paths-tab">
-      <!-- 实例信息 -->
       <div class="instance-info-section">
         <h3>当前实例设置</h3>
         <div class="instance-info-item">
@@ -316,7 +175,6 @@
         </div>
       </div>
 
-      <!-- 全局配置 -->
       <div class="global-config-section">
         <h3>全局配置</h3>
         <div class="paths-grid">
@@ -349,7 +207,6 @@
     </div>
   </main>
 
-  <!-- 添加项目对话框 -->
   <div id="addItemDialog" class="dialog-overlay">
     <div class="dialog-content">
       <div class="dialog-header">
@@ -369,9 +226,8 @@
     </div>
   </div>
 
-  <!-- Toast提示 -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
