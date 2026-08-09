@@ -1,112 +1,118 @@
-# Agent Configuration
+## Project Overview
 
-## Environment
+Local web control panel for configuring and operating multiple Project Zomboid server instances, built with TypeScript, Express, and a framework-free browser frontend.
 
-- Node.js >= 18
-- Cross-platform: Linux, macOS, Windows (Windows uses `taskkill` for process termination; path handling handles backslashes and drive letters)
+## Tech Stack
 
-## Key Architecture Facts
+- Language: TypeScript 5.9 (backend), JavaScript ES modules (frontend)
+- Runtime / Framework: Node.js >= 18, Express 5.1
+- Storage: local `servers-config.json` and Project Zomboid INI files; no database
+- Testing: Vitest 4, Node by default and `happy-dom` for frontend suites
+- Package Manager: npm
 
-- **V2 multi-instance**: server instances are defined in `servers-config.json` (not `paths-config.json`). The legacy `paths-config.json` is auto-migrated on first boot.
-- **Per-server INI path**: each instance has its own `iniPath` in `servers-config.json`. There is no single global config file.
-- **Single-active runtime**: only one server instance can be `starting`/`running`/`stopping` at a time.
-- **Frontend flow**: users first land on `instance-select.html` → pick a server → redirect to `index.html?serverId=<id>` via `instance-select.js`.
-- Backend listens on `127.0.0.1` only. Access is intended via SSH tunnel; no authentication.
-- Static frontend files served from `public/`.
+## Structural Map
 
-## Build/Run/Test Commands
+```text
+pzserver-config-panel/
+|- src/
+|  |- server.ts                 # CLI parsing, Express composition, and process entrypoint
+|  |- routes/                   # Health, config, instance, runtime, and terminal HTTP APIs
+|  |- config/
+|  |  |- servers-config.ts      # Multi-instance persistence, validation, defaults, and migration
+|  |  |- service.ts             # INI read/write orchestration, locking, and backup flow
+|  |  |- workshop-parser.ts     # Workshop mod.info and map discovery
+|  |  \- ...                    # INI parsing, serialization, encoding, lock, and backup helpers
+|  |- runtime/
+|  |  |- manager.ts             # Single-active child-process lifecycle and terminal control
+|  |  \- terminal-buffer.ts     # Per-instance in-memory log ring buffer
+|  |- types/                    # Shared config, instance, runtime, and terminal types
+|  |- errors/                   # AppError codes and HTTP response conversion
+|  |- middleware/               # Express error handling
+|  \- rules/                    # zh-CN INI labels and administrator command catalog
+|- public/
+|  |- instance-select.html      # Instance selection, CRUD, and global settings page
+|  |- index.html                # Selected-instance configuration and runtime console
+|  |- style.css                 # Shared responsive layout and themes
+|  \- js/
+|     |- app.js                 # Management page initialization and event orchestration
+|     |- instance-select.js     # Instance list behavior and management-page navigation
+|     |- api.js                 # Browser API client
+|     |- config.js              # INI rendering, collection, save, and autosave
+|     |- mods.js                # Workshop mods, dependencies, conflicts, maps, and ordering
+|     |- server-manager.js      # Runtime polling, start/stop, and global settings UI
+|     |- terminal.js            # SSE output, command submission, and completion UI
+|     \- ...                    # Shared state, theme, description parsing, and UI utilities
+|- tests/                       # Backend TypeScript Vitest suites
+|  \- frontend/                # Browser JavaScript suites using happy-dom
+|- dev-data/dummy.ini           # Fallback INI for the generated development instance
+|- docs/                        # Historical V1/V2 plans and the newer V2.1 specification
+|- servers-config.json.example  # Multi-instance configuration example
+|- fake-start-server.sh         # Manual server-process simulator
+|- tsconfig.json                # Strict backend build; includes only src/**/*.ts
+\- vitest.config.ts            # Default Node test environment
+```
+
+## Development Guide
+
+### Commands
 
 ```bash
-npm install                    # must run before build/dev
-npm run build                  # tsc -p tsconfig.json → dist/
-npm start                      # node dist/server.js
-npm start -- --port 3000       # with custom port
-npm run dev                    # tsx src/server.ts (no build needed)
-npm test                       # vitest (watch mode by default)
-npm test -- run                # run once, no watch
-npm test -- tests/<file>       # run specific test file
-npm test -- -t "<pattern>"     # filter by test name
-npx tsc --noEmit               # type-check without emitting
+# Install dependencies
+npm install
+
+# Run directly from TypeScript
+npm run dev
+
+# Build src/**/*.ts into dist/
+npm run build
+
+# Run the built server (build first)
+npm start
+npm start -- --port 3000
+
+# Run tests once, or run one file/name pattern
+npm test -- run
+npm test -- run tests/runtime-manager.test.ts
+npm test -- run -t "<pattern>"
+
+# Type-check backend source without emitting
+npx tsc --noEmit
 ```
 
-## Config Files (gitignored)
+`npm test` starts Vitest in watch mode. TypeScript build/type-check commands do not cover `tests/**/*.ts` or `public/**/*.js`; run the tests for those changes.
 
-| File | Purpose |
-|------|---------|
-| `servers-config.json` | V2 multi-instance config (primary) |
-| `paths-config.json` | Legacy V1.5 config (migrated on first boot) |
+### Workflows
 
-## CLI Arguments (`src/server.ts`)
+- Configuration bootstrap: `servers-config.json` is the primary config. If absent, startup can migrate legacy `paths-config.json`, use `--config` as an INI migration candidate, or create a development instance using `dev-data/dummy.ini`. Old flat `servers-config.json` data is also migrated.
+- Frontend navigation: `/` redirects to `instance-select.html`; selecting an instance opens `index.html?serverId=<id>`. The management page requires that ID for instance-specific API calls.
+- INI updates: read and write through `/api/config?serverId=<id>`. Writes acquire `<ini>.lock`, create `<ini>.bak`, preserve supported UTF-8 BOM/newline style, then serialize normalized content.
+- Runtime control: one `ServerRuntimeManager` permits only one instance in `starting`, `running`, or `stopping`. Stop commands are sent before escalating to process termination after the configured timeout.
+- Terminal: SSE first replays the instance ring buffer and then streams output; submitted non-empty command lines are written to the managed process stdin.
+- Route errors: expected failures use `AppError` and `{ error: { code, message } }`; unexpected failures return `INTERNAL_ERROR` with status 500.
 
-- `--config <path>` — used only for legacy migration fallback, not the primary config
-- `--port <number>` — default 3000
-- Unknown arguments or missing options cause usage print + exit 1
+## Notes
 
-## Module Layout
+### Architecture And Safety
 
-| Directory | Purpose |
-|-----------|---------|
-| `src/server.ts` | Entry point, CLI parsing, Express setup |
-| `src/routes/` | `health`, `config` (INI + workshop-poster), `servers-config`, `servers-runtime`, `terminal`, `terminal-commands` |
-| `src/config/` | `workshop-parser.ts` (mod.info), `servers-config.ts` (multi-instance CRUD), ini parser/serializer, encoding, lock, backup |
-| `src/runtime/` | `manager.ts` (spawn/kill/terminal), `terminal-buffer.ts` (ring buffer) |
-| `src/types/` | `config.ts` (SubMod, WorkshopItem, ConfigItem), `server.ts` (ServerInstance, RuntimeState, TerminalLine) |
-| `src/errors/` | `AppError` class with typed error codes |
-| `src/middleware/` | Express error handler |
-| `src/rules/` | zh-CN labels for PZ config keys and admin commands |
-| `public/` | `index.html`, `instance-select.html`, `app.js`, `instance-select.js`, `style.css` |
-| `tests/` | Vitest *.test.ts files |
+- The backend listens only on `127.0.0.1`, has no authentication, and is intended for access through an SSH tunnel. Do not expose it publicly without adding authentication and authorization.
+- `servers-config.json` is resolved from the process working directory. `--config <path>` is only a legacy migration fallback; it does not relocate the primary config. `--port` defaults to 3000. Invalid or unknown CLI arguments print usage and exit 1.
+- Every instance owns an absolute `.ini` path. Use absolute paths for production Workshop and start-script configuration as well. Runtime state and logs exist only in memory, so a panel restart does not rediscover or take ownership of an existing PZ process.
+- INI saving rebuilds parsed content: comments, blank lines, unknown lines, and original key order are not retained. Only strict UTF-8 and UTF-8 BOM are supported; `Mods` and `WorkshopItems` lists are normalized.
+- Workshop media requests must remain inside the configured Workshop root. Keep path checks compatible with POSIX paths, Windows backslashes, and drive letters.
+- Process termination uses process groups on Linux/macOS and `taskkill` on Windows. Preserve cross-platform behavior when changing runtime code.
 
-## Key APIs
+### API Boundaries
 
-### Config
-- `GET /api/config?serverId=<id>` — returns INI items + workshopItems
-- `PUT /api/config?serverId=<id>` — save INI items
-- `GET /api/workshop-poster?rel=<path>` — serve poster/icon files from workshop dir
+- Config: `GET/PUT /api/config?serverId=<id>`, `GET /api/workshop-poster?rel=<path>`
+- Instances: `GET/PUT /api/servers-config`, `GET/PUT /api/global-config`, and CRUD under `/api/servers`
+- Runtime: `GET /api/servers/runtime`, `POST /api/servers/:id/start`, `POST /api/servers/:id/stop`
+- Terminal: `GET /api/servers/:id/terminal/stream`, `POST /api/servers/:id/terminal/commands`, `GET /api/terminal/commands?prefix=<text>`
+- Compatibility: `/api/paths` exists only for legacy clients and migration support.
 
-### Servers (V2)
-- `GET/PUT /api/servers-config` — multi-instance config CRUD
-- `GET /api/servers/runtime` — all instances runtime status
-- `POST /api/servers/:id/start`, `POST /api/servers/:id/stop`
+### Code And Tests
 
-### Terminal
-- `GET /api/servers/:id/terminal/stream` — SSE log stream
-- `POST /api/servers/:id/terminal/commands` — send commands to stdin
-- `GET /api/terminal/commands?prefix=<text>` — autocomplete suggestions
-
-## mod.info Fields Parsed
-
-Parsed in `src/config/workshop-parser.ts` → `parseModInfo()` → returns `SubMod`:
-`name`, `id`, `description`, `poster`, `icon`, `require`, `category`, `loadModBefore`, `loadModAfter`, `incompatible`, `author`, `url`, `modversion`, `pack`, `tiledef`, `versionMin`, `versionMax`.
-
-Self-referencing IDs in `require`/`loadModBefore`/`loadModAfter`/`incompatible` are automatically filtered out.
-
-## Error Handling (`src/errors/app-error.ts`)
-
-Error codes: `BAD_REQUEST`, `NOT_FOUND`, `FILE_LOCKED`, `IO_ERROR`, `ENCODING_UNSUPPORTED`, `SERVER_ALREADY_RUNNING`, `SERVER_NOT_RUNNING`, `ANOTHER_SERVER_RUNNING`, `TERMINAL_NOT_WRITABLE`, `PROCESS_SPAWN_FAILED`, `STOP_TIMEOUT`.
-
-```typescript
-throw new AppError("BAD_REQUEST", "message");
-// Returns: { error: { code: "BAD_REQUEST", message: "..." } } with status 400
-```
-
-Catch `AppError` via `toErrorResponse()` in route handlers. Unexpected errors return `{ error: { code: "INTERNAL_ERROR", message } }` with 500.
-
-## Code Style
-
-- 2 spaces, semicolons, double quotes, trailing commas
-- `import { x } from "./bar.js"` (`.js` extension for local, no extension for npm, `node:` prefix for builtins)
-- `type` aliases for simple types, `interface` for object shapes with methods
-- PascalCase types/enums, camelCase functions/vars, UPPER_SNAKE_CASE constants
-- Prefix unused parameters: `_req`, `_next`
-- Arrow functions for callbacks, early returns, guard clauses
-- No comments unless clarifying non-obvious behavior
-- No Prettier/eslint
-
-## Testing Conventions
-
-- Vitest with `environment: "node"` (in `vitest.config.ts`)
-- `describe`/`it`/`beforeEach`/`afterEach` pattern
-- Arrange → Act → Assert
-- Test both success and error paths
-- Use `npx vitest run` for CI-style runs (no watch)
+- Backend style: 2 spaces, semicolons, double quotes, trailing commas, PascalCase types, camelCase values, UPPER_SNAKE_CASE constants, and `_`-prefixed unused parameters.
+- Use `node:` for built-ins and `.js` extensions for new local TypeScript imports. Prefer guard clauses, early returns, and arrow callbacks. There is no ESLint or Prettier command.
+- Keep the frontend as direct browser ES modules unless an explicit build-system change is requested. Preserve existing module responsibilities rather than growing `app.js`.
+- Vitest defaults to Node; frontend files opt into `happy-dom` with a file-level environment annotation. Cover success and error paths, and clean temporary filesystem fixtures in `afterEach`.
+- `parseModInfo()` filters self-references from `require`, `loadModBefore`, `loadModAfter`, and `incompatible`; keep that invariant when changing Workshop parsing.
