@@ -145,6 +145,19 @@ export async function deleteServer(serverId) {
   }
 }
 
+export async function checkWorkshopAvailabilityAPI(ids) {
+  const response = await fetch("/api/workshop-availability", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error?.message || "检测创意工坊状态失败");
+  }
+  return data;
+}
+
 export async function fetchServerBackups(serverId) {
   const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/backups`);
   const data = await response.json().catch(() => []);

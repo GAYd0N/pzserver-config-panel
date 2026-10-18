@@ -68,6 +68,7 @@ cp servers-config.json.example servers-config.json
 - 多个实例可继续添加到 `servers` 数组，但同一时间只能运行一个实例。
 - `scheduledCommands` 配置定时命令：`action` 支持 `start`、`stop`、`force-stop`、`restart`、`backup`；`name` 为显示名称，`cron` 使用 5 字段格式（分 时 日 月 周，本地时间）并仅用于持久化。定时任务仅在面板运行期间触发，同一分钟内的同一任务只执行一次。也可以在面板的「全局设置 → 当前实例设置 → 定时命令」中通过弹窗添加或编辑，确认后自动保存。
 - `savePath` 指定当前实例的存档文件夹，必须是绝对路径。在面板的「备份配置」栏目中可以设置该路径、立即创建备份，或查看和删除已有备份。备份由 `tar` 创建为 `.tar.gz` 压缩包，保存在存档文件夹的上级目录中，压缩包包含整个存档文件夹和该实例的服务器 INI 配置，命名格式为 `服务器名-backup-日期-时间.tar.gz`；定时命令选择「创建备份」时也会执行相同操作。备份进行期间会显示当前状态并暂停创建新的备份，避免同时生成多个压缩包。
+- 在「模组配置」中点击「检测失效」会通过 Steam 的 `ISteamRemoteStorage/GetPublishedFileDetails` 接口检查 `WorkshopItems` 中的项目是否仍可下载。已删除或隐藏、被封禁、非公开的项目会在列表顶部单独列出；如果项目在本地 Workshop 目录中仍存在文件，会标记为「本地可用」，表示服务器仍可正常启动。该检测需要面板主机能够访问 `api.steampowered.com`。
 
 完成配置后，在项目目录启动面板：
 

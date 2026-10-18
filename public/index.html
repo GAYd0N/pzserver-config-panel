@@ -155,8 +155,14 @@
               <button class="collapse-button" data-target="workshopItemsContent">▼</button>
             </div>
             <div id="workshopItemsContent" class="section-content">
+              <div id="workshopAvailabilityPanel" class="workshop-availability-panel" hidden></div>
               <div class="list-controls">
                 <button class="add-button" data-type="WorkshopItems">添加</button>
+                <button
+                  id="checkWorkshopBtn"
+                  class="add-button check-workshop-button"
+                  title="通过 Steam 接口检测创意工坊项目是否仍可下载"
+                >检测失效</button>
               </div>
               <div id="workshopItemsList" class="list-editor"></div>
             </div>

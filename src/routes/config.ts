@@ -4,6 +4,7 @@ import { AppError, toErrorResponse } from "../errors/app-error.js";
 import { stat } from "node:fs/promises";
 import { parseWorkshopItems } from "../config/workshop-parser.js";
 import { removeWorkshopItemDirectory } from "../config/workshop-files.js";
+import { checkWorkshopAvailability, isValidWorkshopId } from "../config/workshop-availability.js";
 import { relative, resolve } from "node:path";
 import type { WorkshopItem } from "../types/config.js";
 import {
@@ -138,6 +139,34 @@ export function createConfigRouter(configPath?: string): express.Router {
       const targetServer = resolveConfigServer(serversConfig, req);
       const data = await saveConfig(targetServer.iniPath, req.body);
       res.json({ ...data, serverId: targetServer.id });
+    } catch (error) {
+      sendRouteError(error, res);
+    }
+  });
+
+  router.post("/workshop-availability", async (req, res) => {
+    try {
+      const raw = req.body as { ids?: unknown };
+      const ids = raw?.ids;
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new AppError("BAD_REQUEST", "ids is required");
+      }
+
+      if (ids.length > 500) {
+        throw new AppError("BAD_REQUEST", "Too many workshop ids (max 500)");
+      }
+
+      if (ids.some((id) => typeof id !== "string" || !isValidWorkshopId(id))) {
+        throw new AppError("BAD_REQUEST", "Invalid workshop id");
+      }
+
+      const serversConfig = await loadServersConfig({ cliConfigPath: configPath });
+      const items = await checkWorkshopAvailability(ids as string[], {
+        workshopPath: serversConfig.global.workshopPath,
+      });
+
+      res.json({ checkedAt: new Date().toISOString(), items });
     } catch (error) {
       sendRouteError(error, res);
     }

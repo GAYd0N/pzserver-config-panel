@@ -22,6 +22,7 @@ pzserver-config-panel/
 |  |  |- servers-config.ts      # Multi-instance persistence, validation, defaults, and migration
 |  |  |- service.ts             # INI read/write orchestration, locking, and backup flow
 |  |  |- workshop-parser.ts     # Workshop mod.info and map discovery
+|  |  |- workshop-availability.ts # Steam Workshop item availability checks
 |  |  |- workshop-files.ts      # Safe recursive removal of Workshop item directories
 |  |  \- ...                    # INI parsing, serialization, encoding, lock, and backup helpers
 |  |- runtime/
@@ -116,7 +117,7 @@ npx tsc --noEmit
 
 ### API Boundaries
 
-- Config: `GET/PUT /api/config?serverId=<id>`, `GET /api/workshop-poster?rel=<path>`, `DELETE /api/workshop-items/:itemId`
+- Config: `GET/PUT /api/config?serverId=<id>`, `POST /api/workshop-availability`, `GET /api/workshop-poster?rel=<path>`, `DELETE /api/workshop-items/:itemId`
 - Instances: `GET/PUT /api/servers-config`, `GET/PUT /api/global-config`, and CRUD under `/api/servers`
 - Runtime: `GET /api/servers/runtime`, `POST /api/servers/:id/start`, `POST /api/servers/:id/stop`, `POST /api/servers/:id/force-stop`, `POST /api/servers/:id/restart`
 - Terminal: `GET /api/servers/:id/terminal/stream`, `POST /api/servers/:id/terminal/commands`, `GET /api/terminal/commands?prefix=<text>`

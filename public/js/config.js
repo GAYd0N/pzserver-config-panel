@@ -1,7 +1,7 @@
 import { state, markConfigDirty } from "./state.js";
 import { showToast } from "./utils.js";
 import { fetchConfig, saveConfig as saveConfigAPI } from "./api.js";
-import { renderMods, renderWorkshopItems, renderMap, clearPendingDeletions, commitPendingDeletions, filterPendingDeletions } from "./mods.js";
+import { renderMods, renderWorkshopItems, renderMap, clearPendingDeletions, commitPendingDeletions, filterPendingDeletions, refreshWorkshopAvailability } from "./mods.js";
 
 const ITEM_GROUPS_LABELS = {
   basic: "服务器基本设置",
@@ -83,6 +83,11 @@ export function renderConfig() {
   renderMods();
   renderWorkshopItems();
   renderMap();
+
+  const modsTab = document.getElementById("mods-tab");
+  if (modsTab && modsTab.classList.contains("active")) {
+    refreshWorkshopAvailability();
+  }
 }
 
 export function renderNormalItems() {

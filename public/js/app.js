@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { showToast, getUrlParam } from "./utils.js";
 import { initTheme } from "./theme.js";
 import { loadConfig, renderConfig, saveConfigHandler, toggleCollapse } from "./config.js";
-import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeletions, quickAddFromText } from "./mods.js";
+import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeletions, quickAddFromText, refreshWorkshopAvailability } from "./mods.js";
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
 import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig, startUptimeTimer } from "./server-manager.js";
 import { addScheduledCommand, closeScheduledCommandDialog, confirmScheduledCommand } from "./scheduled-commands.js";
@@ -48,6 +48,10 @@ function switchTab(tabName) {
 
   if ((tabName === "config" || tabName === "mods") && (!state.configData || (!state.isDirty && !hasPendingDeletions()))) {
     loadConfig();
+  }
+
+  if (tabName === "mods") {
+    refreshWorkshopAvailability();
   }
 
   if (tabName === "backup") {
@@ -103,6 +107,13 @@ async function init() {
   const quickAddBtn = document.getElementById("quickAddBtn");
   if (quickAddBtn) {
     quickAddBtn.addEventListener("click", quickAddFromText);
+  }
+
+  const checkWorkshopBtn = document.getElementById("checkWorkshopBtn");
+  if (checkWorkshopBtn) {
+    checkWorkshopBtn.addEventListener("click", () => {
+      refreshWorkshopAvailability(true);
+    });
   }
 
   const quickAddInput = document.getElementById("quickAddInput");

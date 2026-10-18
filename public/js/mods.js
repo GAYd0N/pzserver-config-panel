@@ -2,7 +2,7 @@ import { state, markConfigDirty } from "./state.js";
 import { showToast, escapeHtml } from "./utils.js";
 import { parseDescriptionTags } from "./description-parser.js";
 import { confirmAction } from "./confirm-dialog.js";
-import { deleteWorkshopItemFiles } from "./api.js";
+import { deleteWorkshopItemFiles, checkWorkshopAvailabilityAPI } from "./api.js";
 
 let currentAddType = null;
 
@@ -11,6 +11,16 @@ const pendingDeletions = {
   WorkshopItems: new Set(),
   Map: new Set(),
 };
+
+const workshopAvailability = {
+  entries: new Map(),
+  checkedAt: "",
+  signature: "",
+  loading: false,
+  error: "",
+};
+
+const PROBLEM_STATUSES = new Set(["unavailable", "banned", "restricted"]);
 
 // ===== Pending Deletions =====
 
@@ -320,6 +330,184 @@ function renderSubModCard(subMod) {
   return subModDiv;
 }
 
+// ===== Workshop Availability =====
+
+function getWorkshopAvailability(itemId) {
+  return workshopAvailability.entries.get(itemId) || null;
+}
+
+function hasAvailabilityProblem(entry) {
+  return !!entry && PROBLEM_STATUSES.has(entry.status);
+}
+
+function describeAvailability(entry) {
+  switch (entry.status) {
+    case "banned":
+      return entry.bannedReason
+        ? `已被 Steam 封禁：${entry.bannedReason}`
+        : "已被 Steam 封禁，无法下载";
+    case "restricted":
+      return "非公开项目（好友/私有），服务器可能无法下载";
+    case "unavailable":
+      return entry.downloaded
+        ? "创意工坊已无法获取，但本地已有文件，服务器仍可启动"
+        : "创意工坊已无法获取（已删除或隐藏），本地也没有文件，服务器可能无法启动";
+    case "unknown":
+      return "检测失败，无法确认状态";
+    default:
+      return "";
+  }
+}
+
+function focusWorkshopItem(itemId) {
+  const row = document.querySelector(`.workshop-item[data-item-id="${itemId}"]`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.classList.add("highlight");
+  setTimeout(function() {
+    row.classList.remove("highlight");
+  }, 1600);
+}
+
+function renderWorkshopProblem(entry) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "workshop-problem " + (entry.downloaded ? "warning" : "error");
+  row.dataset.itemId = entry.id;
+  row.onclick = function() { focusWorkshopItem(entry.id); };
+
+  const badge = document.createElement("span");
+  badge.className = "workshop-problem-badge";
+  badge.textContent = entry.downloaded ? "本地可用" : "失效";
+  row.appendChild(badge);
+
+  const idSpan = document.createElement("span");
+  idSpan.className = "workshop-problem-id";
+  idSpan.textContent = entry.id;
+  row.appendChild(idSpan);
+
+  if (entry.title) {
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "workshop-problem-title";
+    titleSpan.textContent = entry.title;
+    row.appendChild(titleSpan);
+  }
+
+  const reason = document.createElement("span");
+  reason.className = "workshop-problem-reason";
+  reason.textContent = describeAvailability(entry);
+  row.appendChild(reason);
+
+  return row;
+}
+
+export function renderWorkshopAvailability() {
+  const panel = document.getElementById("workshopAvailabilityPanel");
+  if (!panel) return;
+
+  if (!workshopAvailability.signature && !workshopAvailability.error) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    return;
+  }
+
+  const problems = state.workshopItemsItems
+    .map(function(itemId) { return getWorkshopAvailability(itemId); })
+    .filter(hasAvailabilityProblem);
+
+  panel.hidden = false;
+  panel.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "workshop-availability-header";
+
+  const title = document.createElement("span");
+  title.className = "workshop-availability-title";
+  title.textContent = "创意工坊检测";
+  header.appendChild(title);
+
+  const summary = document.createElement("span");
+  summary.className = "workshop-availability-summary";
+  if (workshopAvailability.error) {
+    summary.classList.add("error");
+    summary.textContent = "检测失败：" + workshopAvailability.error;
+  } else if (problems.length === 0) {
+    summary.classList.add("ok");
+    summary.textContent = "已检测 " + state.workshopItemsItems.length + " 个项目，未发现失效项目";
+  } else {
+    summary.classList.add("warn");
+    summary.textContent = "检测到 " + problems.length + " 个异常项目";
+  }
+  header.appendChild(summary);
+
+  if (workshopAvailability.checkedAt && !workshopAvailability.error) {
+    const time = document.createElement("span");
+    time.className = "workshop-availability-time";
+    time.textContent = new Date(workshopAvailability.checkedAt).toLocaleTimeString();
+    header.appendChild(time);
+  }
+
+  panel.appendChild(header);
+
+  if (problems.length > 0) {
+    const list = document.createElement("div");
+    list.className = "workshop-problem-list";
+    problems.forEach(function(entry) {
+      list.appendChild(renderWorkshopProblem(entry));
+    });
+    panel.appendChild(list);
+  }
+}
+
+function updateWorkshopCheckButton() {
+  const button = document.getElementById("checkWorkshopBtn");
+  if (!button) return;
+  button.disabled = workshopAvailability.loading;
+  button.textContent = workshopAvailability.loading ? "检测中…" : "检测失效";
+}
+
+export async function refreshWorkshopAvailability(force = false) {
+  if (!document.getElementById("workshopAvailabilityPanel")) return;
+
+  const ids = state.workshopItemsItems.slice();
+
+  if (ids.length === 0) {
+    workshopAvailability.entries = new Map();
+    workshopAvailability.signature = "";
+    workshopAvailability.checkedAt = "";
+    workshopAvailability.error = "";
+    renderWorkshopAvailability();
+    return;
+  }
+
+  const signature = ids.join(";");
+  if (!force && (workshopAvailability.loading || signature === workshopAvailability.signature)) {
+    return;
+  }
+
+  workshopAvailability.loading = true;
+  updateWorkshopCheckButton();
+
+  try {
+    const data = await checkWorkshopAvailabilityAPI(ids);
+    const items = Array.isArray(data.items) ? data.items : [];
+    workshopAvailability.entries = new Map(items.map(function(item) { return [item.id, item]; }));
+    workshopAvailability.checkedAt = data.checkedAt || new Date().toISOString();
+    workshopAvailability.signature = signature;
+    workshopAvailability.error = "";
+  } catch (error) {
+    workshopAvailability.error = error.message || "未知错误";
+    workshopAvailability.entries = new Map();
+    workshopAvailability.signature = "";
+    workshopAvailability.checkedAt = "";
+  } finally {
+    workshopAvailability.loading = false;
+    updateWorkshopCheckButton();
+    renderWorkshopAvailability();
+    renderWorkshopItems();
+  }
+}
+
 // ===== Workshop Items Rendering =====
 
 export function renderWorkshopItems() {
@@ -330,6 +518,11 @@ export function renderWorkshopItems() {
     const workshopItem = state.workshopItemsData.find(function(wi) { return wi.id === itemId; }) || { id: itemId, isDownloaded: false, subMods: [], maps: [] };
     const div = document.createElement("div");
     div.className = "workshop-item";
+    div.dataset.itemId = itemId;
+
+    if (hasAvailabilityProblem(getWorkshopAvailability(itemId))) {
+      div.classList.add("workshop-item-problem");
+    }
 
     const headerDiv = document.createElement("div");
     headerDiv.className = "workshop-item-header";
@@ -344,6 +537,15 @@ export function renderWorkshopItems() {
     statusIndicator.textContent = workshopItem.isDownloaded ? "✓" : "✗";
     statusIndicator.title = workshopItem.isDownloaded ? "已下载" : "未下载";
     headerDiv.appendChild(statusIndicator);
+
+    const availability = getWorkshopAvailability(itemId);
+    if (hasAvailabilityProblem(availability)) {
+      const failBadge = document.createElement("span");
+      failBadge.className = "workshop-fail-badge " + (availability.downloaded ? "warning" : "error");
+      failBadge.textContent = availability.downloaded ? "本地可用" : "失效";
+      failBadge.title = describeAvailability(availability);
+      headerDiv.appendChild(failBadge);
+    }
 
     const input = document.createElement("input");
     input.type = "text";
@@ -870,6 +1072,7 @@ export function quickAddFromText() {
   renderWorkshopItems();
   renderMods();
   renderMap();
+  refreshWorkshopAvailability();
   input.value = "";
 
   const skippedText = skipped > 0 ? `，已跳过 ${skipped} 项重复条目` : "";
@@ -926,6 +1129,7 @@ export function confirmAddItem() {
   } else if (currentAddType === "WorkshopItems") {
     state.workshopItemsItems.push(inputValue);
     renderWorkshopItems();
+    refreshWorkshopAvailability();
   } else if (currentAddType === "Map") {
     state.mapItems.push(inputValue);
     renderMap();
