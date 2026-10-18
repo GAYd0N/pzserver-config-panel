@@ -6,6 +6,7 @@ import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeleti
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
 import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig, startUptimeTimer } from "./server-manager.js";
 import { addScheduledCommand, closeScheduledCommandDialog, confirmScheduledCommand } from "./scheduled-commands.js";
+import { createBackup, loadBackups, saveSavePath, updateBackupConfigUI } from "./backups.js";
 
 let hasAutoConnectedTerminal = false;
 
@@ -38,6 +39,11 @@ function switchTab(tabName) {
 
   if ((tabName === "config" || tabName === "mods") && (!state.configData || (!state.isDirty && !hasPendingDeletions()))) {
     loadConfig();
+  }
+
+  if (tabName === "backup") {
+    updateBackupConfigUI();
+    loadBackups();
   }
 }
 
@@ -116,6 +122,16 @@ async function init() {
   terminalInput.addEventListener("input", handleTerminalChange);
 
   document.getElementById("saveGlobalConfigBtn").addEventListener("click", saveGlobalConfig);
+
+  const saveSavePathBtn = document.getElementById("saveSavePathBtn");
+  if (saveSavePathBtn) {
+    saveSavePathBtn.addEventListener("click", saveSavePath);
+  }
+
+  const createBackupBtn = document.getElementById("createBackupBtn");
+  if (createBackupBtn) {
+    createBackupBtn.addEventListener("click", createBackup);
+  }
 
   const addScheduledCommandBtn = document.getElementById("addScheduledCommandBtn");
   if (addScheduledCommandBtn) {

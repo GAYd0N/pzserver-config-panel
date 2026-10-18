@@ -6,6 +6,7 @@ import {
   createServersRuntimeRouter,
   createTerminalRouter,
   createTerminalCommandsRouter,
+  createBackupsRouter,
 } from "./routes/index.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { ServerRuntimeManager } from "./runtime/manager.js";
@@ -55,6 +56,7 @@ app.use(
   createTerminalRouter(runtimeManager, startupOptions.configPath || ""),
 );
 app.use("/api", createTerminalCommandsRouter());
+app.use("/api", createBackupsRouter(startupOptions.configPath || ""));
 
 app.use(errorHandler);
 

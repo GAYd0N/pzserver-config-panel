@@ -212,6 +212,67 @@ describe("servers-config", () => {
     expect(persisted.servers[0].scheduledCommands).toHaveLength(2);
   });
 
+  it("should persist the save path and default missing ones to an empty string", async () => {
+    const config = {
+      global: {
+        workshopPath: "",
+        startScriptPath: "/start.sh",
+        stopGraceTimeoutMs: 45000,
+        forceKillTimeoutMs: 10000,
+      },
+      servers: [
+        {
+          id: "main",
+          name: "Main",
+          iniPath: "/srv/main.ini",
+          savePath: "/srv/saves/main",
+          startArgs: ["-servername", "main"],
+          stopCommands: ["save", "quit"],
+        },
+        {
+          id: "other",
+          name: "Other",
+          iniPath: "/srv/other.ini",
+          startArgs: ["-servername", "other"],
+          stopCommands: ["save", "quit"],
+        },
+      ],
+    };
+
+    const saved = await saveServersConfig(config, { serversConfigPath });
+
+    expect(saved.servers[0].savePath).toBe("/srv/saves/main");
+    expect(saved.servers[1].savePath).toBe("");
+
+    const persisted = JSON.parse(await readFile(serversConfigPath, "utf8")) as ServersConfig;
+    expect(persisted.servers[0].savePath).toBe("/srv/saves/main");
+  });
+
+  it("should reject a relative save path", async () => {
+    const config = {
+      global: {
+        workshopPath: "",
+        startScriptPath: "/start.sh",
+        stopGraceTimeoutMs: 45000,
+        forceKillTimeoutMs: 10000,
+      },
+      servers: [
+        {
+          id: "main",
+          name: "Main",
+          iniPath: "/srv/main.ini",
+          savePath: "saves/main",
+          startArgs: ["-servername", "main"],
+          stopCommands: ["save", "quit"],
+        },
+      ],
+    };
+
+    await expect(
+      saveServersConfig(config, { serversConfigPath }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
+  });
+
   it("should reject invalid scheduled command actions and cron expressions", async () => {
     const baseConfig = {
       global: {

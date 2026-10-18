@@ -113,6 +113,7 @@ export function createServersConfigRouter(cliConfigPath?: string): express.Route
         id: newId,
         name: name,
         iniPath: iniPath,
+        savePath: "",
         startArgs: Array.isArray(req.body.startArgs)
           ? req.body.startArgs.filter((arg: unknown): arg is string => typeof arg === "string")
           : ["-servername", iniBaseName],
@@ -161,6 +162,9 @@ export function createServersConfigRouter(cliConfigPath?: string): express.Route
         ...currentServer,
         name: typeof req.body.name === "string" ? req.body.name.trim() : currentServer.name,
         iniPath: typeof req.body.iniPath === "string" ? req.body.iniPath.trim() : currentServer.iniPath,
+        savePath: typeof req.body.savePath === "string"
+          ? req.body.savePath.trim()
+          : currentServer.savePath,
         startArgs: Array.isArray(req.body.startArgs)
           ? req.body.startArgs.filter((arg: unknown): arg is string => typeof arg === "string")
           : currentServer.startArgs,

@@ -144,3 +144,34 @@ export async function deleteServer(serverId) {
     throw new Error(error.error?.message || `Failed to delete server: ${response.status}`);
   }
 }
+
+export async function fetchServerBackups(serverId) {
+  const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/backups`);
+  const data = await response.json().catch(() => []);
+  if (!response.ok) {
+    throw new Error(data.error?.message || "加载备份列表失败");
+  }
+  return data;
+}
+
+export async function createServerBackupAPI(serverId) {
+  const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/backups`, {
+    method: "POST",
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || "创建备份失败");
+  }
+  return data;
+}
+
+export async function deleteServerBackupAPI(serverId, fileName) {
+  const response = await fetch(
+    `/api/servers/${encodeURIComponent(serverId)}/backups/${encodeURIComponent(fileName)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error?.message || "删除备份失败");
+  }
+}

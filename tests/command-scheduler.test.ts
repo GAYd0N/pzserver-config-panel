@@ -13,6 +13,7 @@ function createServer(scheduledCommands: ScheduledCommand[]): ServerInstance {
     id: "main",
     name: "Main",
     iniPath: "/srv/main.ini",
+    savePath: "/srv/saves/main",
     startArgs: ["-servername", "main"],
     stopCommands: ["save", "quit"],
     scheduledCommands,
@@ -86,6 +87,23 @@ describe("CommandScheduler", () => {
       stopGraceTimeoutMs: 45000,
       forceKillTimeoutMs: 10000,
     });
+  });
+
+  it("dispatches a backup action through the backup handler", async () => {
+    const runtimeManager = createRuntimeManager();
+    const createBackup = vi.fn().mockResolvedValue({});
+    const config = createConfig([createCommand("backup")]);
+    const scheduler = new CommandScheduler({
+      runtimeManager,
+      loadConfig: async () => config,
+      createBackup,
+    });
+
+    await scheduler.tick(new Date(2026, 9, 18, 4, 0));
+
+    expect(createBackup).toHaveBeenCalledWith(config.servers[0]);
+    expect(runtimeManager.startServer).not.toHaveBeenCalled();
+    expect(runtimeManager.stopServer).not.toHaveBeenCalled();
   });
 
   it("skips disabled commands and non-matching schedules", async () => {

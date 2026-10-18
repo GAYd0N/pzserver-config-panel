@@ -10,6 +10,7 @@
       "id": "test-server",
       "name": "Test",
       "iniPath": "/tmp/pzserver-config-panel-v2-test-1771391255328/api-test.ini",
+      "savePath": "/tmp/pz-saves/test",
       "startArgs": [
         "-servername",
         "test"

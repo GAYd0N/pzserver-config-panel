@@ -1189,6 +1189,89 @@ main {
   flex-wrap: wrap;
 }
 
+/* ===== Backup Tab ===== */
+.backup-path-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.backup-path-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.backup-path-row .path-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.backup-path-row .add-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+
+.backup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.backup-name {
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+
+.backup-meta {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.backup-delete-button {
+  background-color: transparent;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.backup-delete-button:hover {
+  color: var(--color-accent-red);
+  border-color: var(--color-accent-red);
+}
+
+.backup-empty {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
 .scheduled-time-row {
   display: flex;
   align-items: center;
@@ -2667,6 +2750,9 @@ body.dragging-active .list-item { cursor: grabbing; }
   .terminal-input-area { flex-direction: column; }
   .send-command-btn { width: 100%; }
   .instance-info-section, .global-config-section { padding: 1rem; }
+  .backup-path-row { flex-direction: column; align-items: stretch; }
+  .backup-path-row .add-button { width: 100%; }
+  .backup-row { align-items: flex-start; }
 }
 
 @media (max-width: 480px) {

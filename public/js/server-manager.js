@@ -12,6 +12,7 @@ import {
 import { reconnectTerminal } from "./terminal.js";
 import { confirmAction } from "./confirm-dialog.js";
 import { renderScheduledCommands } from "./scheduled-commands.js";
+import { updateBackupConfigUI } from "./backups.js";
 
 // ===== Load Data =====
 
@@ -93,6 +94,7 @@ export function updateInstanceInfo() {
   document.getElementById("instanceStartArgs").textContent = state.currentServer.startArgs.join(" ");
   document.getElementById("instanceStopCommands").textContent = state.currentServer.stopCommands.join(", ");
   renderScheduledCommands();
+  updateBackupConfigUI();
 }
 
 export function updateGlobalConfigUI() {

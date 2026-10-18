@@ -37,6 +37,7 @@
       <button class="tab-button active" data-tab="console">控制台</button>
       <button class="tab-button" data-tab="config">配置管理</button>
       <button class="tab-button" data-tab="mods">模组配置</button>
+      <button class="tab-button" data-tab="backup">备份配置</button>
       <button class="tab-button" data-tab="paths">全局设置</button>
     </div>
 
@@ -191,6 +192,39 @@
       </div>
     </div>
 
+    <div class="tab-content" id="backup-tab">
+      <section class="config-section backup-section">
+        <div class="section-header">
+          <h2>备份配置</h2>
+        </div>
+        <div class="backup-path-item">
+          <label class="path-label" for="savePathInput">存档文件夹路径</label>
+          <div class="backup-path-row">
+            <input
+              type="text"
+              id="savePathInput"
+              class="path-input"
+              placeholder="例如: /home/user/Zomboid/Saves/Multiplayer/servertest"
+              spellcheck="false"
+            />
+            <button id="saveSavePathBtn" class="add-button" type="button">保存路径</button>
+          </div>
+          <p class="path-description">
+            指定当前实例的存档文件夹。备份会以 tar.gz 压缩包的形式创建在存档文件夹的上级目录中，
+            包含整个存档文件夹和服务器 INI 配置文件，命名格式为“服务器名-backup-日期-时间.tar.gz”。
+          </p>
+        </div>
+      </section>
+
+      <section class="config-section backup-section">
+        <div class="section-header">
+          <h2>备份列表</h2>
+          <button id="createBackupBtn" class="add-button" type="button">立即备份</button>
+        </div>
+        <div id="backupList" class="backup-list"></div>
+      </section>
+    </div>
+
     <div class="tab-content" id="paths-tab">
       <div class="instance-info-section">
         <h3>当前实例设置</h3>
@@ -296,6 +330,7 @@
             <option value="stop">停止</option>
             <option value="force-stop">强制停止</option>
             <option value="restart">重启</option>
+            <option value="backup">创建备份</option>
           </select>
         </div>
         <div class="dialog-input-group">

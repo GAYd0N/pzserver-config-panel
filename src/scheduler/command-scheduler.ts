@@ -1,4 +1,5 @@
 import { loadServersConfig } from "../config/servers-config.js";
+import { createServerBackup } from "../backup/server-backup.js";
 import type { ServerRuntimeManager, StopServerOptions } from "../runtime/manager.js";
 import type {
   ScheduledCommand,
@@ -17,6 +18,7 @@ export type CommandSchedulerOptions = {
   intervalMs?: number;
   now?: () => Date;
   loadConfig?: () => Promise<ServersConfig>;
+  createBackup?: (server: ServerInstance) => Promise<unknown>;
   onError?: (error: unknown, context: string) => void;
   setIntervalFn?: (handler: () => void, intervalMs: number) => ReturnType<typeof setInterval>;
   clearIntervalFn?: (handle: ReturnType<typeof setInterval>) => void;
@@ -42,6 +44,8 @@ export class CommandScheduler {
 
   private readonly loadConfig: () => Promise<ServersConfig>;
 
+  private readonly createBackup: (server: ServerInstance) => Promise<unknown>;
+
   private readonly onError: (error: unknown, context: string) => void;
 
   private readonly setIntervalFn: (
@@ -66,6 +70,7 @@ export class CommandScheduler {
     this.loadConfig =
       options.loadConfig ??
       (() => loadServersConfig({ cliConfigPath: options.cliConfigPath }));
+    this.createBackup = options.createBackup ?? createServerBackup;
     this.onError =
       options.onError ??
       ((error, context) => {
@@ -184,6 +189,9 @@ export class CommandScheduler {
         break;
       case "restart":
         await this.runtimeManager.restartServer(server, config.global, stopOptions);
+        break;
+      case "backup":
+        await this.createBackup(server);
         break;
     }
   }

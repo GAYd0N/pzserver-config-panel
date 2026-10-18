@@ -5,7 +5,13 @@ export type ServerGlobalConfig = {
   forceKillTimeoutMs: number;
 };
 
-export const SCHEDULED_ACTIONS = ["start", "stop", "force-stop", "restart"] as const;
+export const SCHEDULED_ACTIONS = [
+  "start",
+  "stop",
+  "force-stop",
+  "restart",
+  "backup",
+] as const;
 
 export type ScheduledAction = (typeof SCHEDULED_ACTIONS)[number];
 
@@ -21,6 +27,7 @@ export type ServerInstance = {
   id: string;
   name: string;
   iniPath: string;
+  savePath: string;
   startArgs: string[];
   stopCommands: string[];
   scheduledCommands: ScheduledCommand[];

@@ -164,6 +164,33 @@ function normalizeStartArgs(value: unknown, index: number, iniBaseName: string):
     .filter((item) => item.length > 0);
 }
 
+function normalizeSavePath(value: unknown, index: number): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    throw new AppError(
+      "BAD_REQUEST",
+      `servers[${index}].savePath must be a string`,
+    );
+  }
+
+  const savePath = value.trim();
+  if (!savePath) {
+    return "";
+  }
+
+  if (!isAbsolute(savePath)) {
+    throw new AppError(
+      "BAD_REQUEST",
+      `servers[${index}].savePath must be an absolute path`,
+    );
+  }
+
+  return savePath;
+}
+
 function normalizeScheduledCommands(
   value: unknown,
   serverIndex: number,
@@ -269,6 +296,7 @@ function normalizeServerInstance(
     id: rawId,
     name: rawName || rawId,
     iniPath: rawIniPath,
+    savePath: normalizeSavePath(value.savePath, index),
     startArgs: normalizeStartArgs(value.startArgs, index, iniBaseName),
     stopCommands: normalizeStopCommands(value.stopCommands, index),
     scheduledCommands: normalizeScheduledCommands(value.scheduledCommands, index),
@@ -377,6 +405,7 @@ function createServerFromIniPath(
     id,
     name: baseName || DEFAULT_SERVER_NAME,
     iniPath,
+    savePath: "",
     startArgs: ["-servername", baseName],
     stopCommands: [...DEFAULT_STOP_COMMANDS],
     scheduledCommands: [],
@@ -468,6 +497,7 @@ function migrateLegacyServersConfig(legacy: LegacyServersConfig): ServersConfig 
         id,
         name: name || id,
         iniPath: rawIniPath,
+        savePath: "",
         startArgs,
         stopCommands,
         scheduledCommands: [],

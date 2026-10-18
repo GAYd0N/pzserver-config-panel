@@ -8,6 +8,7 @@ const ACTION_OPTIONS = [
   { value: "stop", label: "停止" },
   { value: "force-stop", label: "强制停止" },
   { value: "restart", label: "重启" },
+  { value: "backup", label: "创建备份" },
 ];
 
 const WEEKDAYS = [

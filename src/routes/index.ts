@@ -4,6 +4,7 @@ import { createServersConfigRouter } from "./servers-config.js";
 import { createServersRuntimeRouter } from "./servers-runtime.js";
 import { createTerminalRouter } from "./terminal.js";
 import { createTerminalCommandsRouter } from "./terminal-commands.js";
+import { createBackupsRouter } from "./backups.js";
 
 export {
   createHealthRouter,
@@ -12,4 +13,5 @@ export {
   createServersRuntimeRouter,
   createTerminalRouter,
   createTerminalCommandsRouter,
+  createBackupsRouter,
 };
