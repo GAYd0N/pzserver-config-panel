@@ -31,6 +31,25 @@ describe("theme.js", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
+  it("uses monochrome SVG icons instead of emoji for every mode", () => {
+    localStorage.setItem("pz-panel-theme", "dark");
+    initTheme();
+
+    const icon = document.getElementById("themeToggleIcon");
+    const toggle = document.getElementById("themeToggle");
+
+    expect(icon.querySelector("svg.theme-icon")).not.toBeNull();
+    expect(icon.textContent.trim()).toBe("");
+    expect(icon.querySelector("svg.theme-icon").getAttribute("stroke")).toBe("currentColor");
+
+    toggle.click();
+    expect(icon.querySelector("circle")).not.toBeNull();
+
+    toggle.click();
+    expect(icon.querySelector("rect")).not.toBeNull();
+    expect(icon.textContent.trim()).toBe("");
+  });
+
   it("cycles theme on toggle click from dark to light", () => {
     localStorage.setItem("pz-panel-theme", "dark");
     initTheme();

@@ -341,6 +341,18 @@
   color: var(--color-text-primary);
 }
 
+.theme-toggle > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 /* ===== Reset ===== */
 * {
   margin: 0;
