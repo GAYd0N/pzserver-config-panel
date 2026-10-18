@@ -1345,6 +1345,26 @@ main {
   color: var(--color-text-primary);
 }
 
+.list-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.list-button:disabled:hover {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+}
+
+.list-button.move-last {
+  white-space: nowrap;
+}
+
+.list-button.move-last:hover:not(:disabled) {
+  background-color: var(--color-accent-blue);
+  color: white;
+  border-color: var(--color-accent-blue);
+}
+
 .list-button.delete:hover {
   background-color: var(--color-accent-red);
   color: white;

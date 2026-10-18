@@ -449,6 +449,16 @@ function renderListEditor(containerId, items, type) {
     downBtn.onclick = () => moveListItem(type, index, 1);
     div.appendChild(downBtn);
 
+    if (type === "Mods") {
+      const lastBtn = document.createElement("button");
+      lastBtn.className = "list-button move-last";
+      lastBtn.textContent = "置低";
+      lastBtn.title = "移到模组加载顺序最后";
+      lastBtn.disabled = index === items.length - 1;
+      lastBtn.onclick = () => moveItemToEnd(type, index);
+      div.appendChild(lastBtn);
+    }
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "list-button delete";
     deleteBtn.textContent = "删除";
@@ -495,6 +505,16 @@ function moveListItem(type, index, direction) {
   const temp = arr[index];
   arr[index] = arr[index + direction];
   arr[index + direction] = temp;
+  markConfigDirty();
+  rerenderByType(type);
+}
+
+function moveItemToEnd(type, index) {
+  const arr = getItemsArray(type);
+  if (!arr || index < 0 || index >= arr.length - 1) return;
+
+  const [moved] = arr.splice(index, 1);
+  arr.push(moved);
   markConfigDirty();
   rerenderByType(type);
 }

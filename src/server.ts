@@ -10,65 +10,15 @@ import {
 import { errorHandler } from "./middleware/error-handler.js";
 import { ServerRuntimeManager } from "./runtime/manager.js";
 import { loadServersConfig } from "./config/servers-config.js";
-
-type StartupOptions = {
-  configPath?: string;
-  port: number;
-};
-
-const HOST = "127.0.0.1";
-const DEFAULT_PORT = 3000;
+import {
+  formatListenUrl,
+  isLoopbackHost,
+  parseStartupOptions,
+  type StartupOptions,
+} from "./cli-options.js";
 
 function usage(): string {
-  return "Usage: node dist/server.js [--config <path>] [--port <number>]";
-}
-
-function parsePort(rawPort: string): number {
-  if (!/^\d+$/.test(rawPort)) {
-    throw new Error("Invalid --port: must be an integer.");
-  }
-
-  const port = Number(rawPort);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("Invalid --port: must be between 1 and 65535.");
-  }
-
-  return port;
-}
-
-function parseStartupOptions(argv: string[]): StartupOptions {
-  let configPath: string | undefined;
-  let port = DEFAULT_PORT;
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-
-    if (arg === "--config") {
-      const value = argv[i + 1];
-      if (!value || value.startsWith("--")) {
-        throw new Error("Missing value for --config.");
-      }
-
-      configPath = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--port") {
-      const value = argv[i + 1];
-      if (!value || value.startsWith("--")) {
-        throw new Error("Missing value for --port.");
-      }
-
-      port = parsePort(value);
-      i += 1;
-      continue;
-    }
-
-    throw new Error(`Unknown argument: ${arg}`);
-  }
-
-  return { configPath, port };
+  return "Usage: node dist/server.js [--host <address>] [--port <number>] [--config <path>]";
 }
 
 let startupOptions: StartupOptions;
@@ -110,13 +60,24 @@ app.use(errorHandler);
 (async () => {
   await loadServersConfig({ cliConfigPath: startupOptions.configPath || "" });
 
-  app.listen(startupOptions.port, HOST, () => {
+  const listenUrl = formatListenUrl(startupOptions.host, startupOptions.port);
+
+  if (!isLoopbackHost(startupOptions.host)) {
+    console.warn(
+      "Warning: the panel has no authentication. Binding to a non-loopback address exposes it to the network.",
+    );
+  }
+
+  const httpServer = app.listen(startupOptions.port, startupOptions.host, () => {
     if (startupOptions.configPath) {
       console.log(`Config file: ${startupOptions.configPath}`);
     }
-    console.log(
-      `pzserver-config-panel listening on http://${HOST}:${startupOptions.port}`,
-    );
+    console.log(`pzserver-config-panel listening on ${listenUrl}`);
+  });
+
+  httpServer.on("error", (error) => {
+    console.error("Failed to start HTTP server:", error);
+    process.exit(1);
   });
 })().catch((err) => {
   console.error("Failed to start server:", err);

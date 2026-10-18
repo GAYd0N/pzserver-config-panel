@@ -164,4 +164,36 @@ describe("mods.js", () => {
     expect(state.isDirty).toBe(true);
     expect(document.getElementById("addItemDialog").classList.contains("active")).toBe(false);
   });
+
+  it("moves a mod to the end of the load order with the 置低 button", () => {
+    state.modsItems = ["modA", "modB", "modC"];
+    renderMods();
+
+    const firstRow = document.querySelector("#modsList .list-item");
+    const lastButton = firstRow.querySelector(".list-button.move-last");
+    expect(lastButton.disabled).toBe(false);
+
+    lastButton.click();
+
+    expect(state.modsItems).toEqual(["modB", "modC", "modA"]);
+    expect(state.isDirty).toBe(true);
+
+    const rows = document.querySelectorAll("#modsList .list-item");
+    expect(rows[2].querySelector(".list-item-input").value).toBe("modA");
+    expect(rows[2].querySelector(".list-button.move-last").disabled).toBe(true);
+  });
+
+  it("supports manual ordering with the up and down buttons", () => {
+    state.modsItems = ["modA", "modB", "modC"];
+    renderMods();
+
+    let rows = document.querySelectorAll("#modsList .list-item");
+    rows[2].querySelector('button[title="上移"]').click();
+    expect(state.modsItems).toEqual(["modA", "modC", "modB"]);
+
+    rows = document.querySelectorAll("#modsList .list-item");
+    rows[0].querySelector('button[title="下移"]').click();
+    expect(state.modsItems).toEqual(["modC", "modA", "modB"]);
+    expect(state.isDirty).toBe(true);
+  });
 });

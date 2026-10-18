@@ -84,22 +84,54 @@ ssh -N -T -L 3000:127.0.0.1:3000 user@your-server-ip
 http://localhost:3000
 ```
 
-## 4. 可选参数
+## 4. 启动面板
 
-参数需放在 `npm start --` 之后：
+推荐使用启动脚本。脚本会自动检查并编译尚未构建或源码已更新的后端代码：
+
+Windows PowerShell：
+
+```powershell
+# 默认监听 127.0.0.1:3000
+.\start-panel.ps1
+
+# 指定绑定地址和端口
+.\start-panel.ps1 -BindAddress 0.0.0.0 -Port 8080
+```
+
+Linux / macOS：
+
+```bash
+chmod +x start-panel.sh
+./start-panel.sh
+./start-panel.sh --host 0.0.0.0 --port 8080
+```
+
+也可以不使用脚本，先构建再启动：
+
+```bash
+npm run build
+npm start -- --host 127.0.0.1 --port 8080
+```
+
+> **安全提示**：面板没有身份认证，默认只监听 `127.0.0.1`，应通过 SSH 隧道访问。绑定到 `0.0.0.0` 或其他非回环地址会让网络中的其他设备访问面板，请自行增加访问控制或防火墙规则。
+
+### 可选参数
+
+以下参数用于 `npm start --`。启动脚本的参数见上一节：Windows 使用 `-BindAddress` / `-Port`，Linux/macOS 使用 `--host` / `--port`。
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
+| `--host <address>` | 修改面板绑定的地址，例如 `127.0.0.1`、`0.0.0.0`、`::1` | `127.0.0.1` |
 | `--port <number>` | 修改面板监听端口，范围为 `1-65535` | `3000` |
 | `--config <path>` | 仅在首次启动且不存在 `servers-config.json` 时，为旧版配置迁移提供 INI 路径；不会改变 `servers-config.json` 的位置 | 无 |
 
-例如，将面板端口改为 `8080`：
+例如，将面板绑定到所有网卡并修改端口为 `8080`：
 
 ```bash
-npm start -- --port 8080
+npm start -- --host 0.0.0.0 --port 8080
 ```
 
-对应的 SSH 隧道命令为：
+使用默认回环地址时，SSH 隧道命令为：
 
 ```bash
 ssh -N -T -L 8080:127.0.0.1:8080 user@your-server-ip

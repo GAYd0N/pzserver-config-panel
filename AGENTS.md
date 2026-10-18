@@ -15,7 +15,8 @@ Local web control panel for configuring and operating multiple Project Zomboid s
 ```text
 pzserver-config-panel/
 |- src/
-|  |- server.ts                 # CLI parsing, Express composition, and process entrypoint
+|  |- server.ts                 # Express composition and process entrypoint
+|  |- cli-options.ts            # Host, port, and legacy config CLI parsing and URL helpers
 |  |- routes/                   # Health, config, instance, runtime, and terminal HTTP APIs
 |  |- config/
 |  |  |- servers-config.ts      # Multi-instance persistence, validation, defaults, and migration
@@ -48,6 +49,8 @@ pzserver-config-panel/
 |- docs/                        # Historical V1/V2 plans and the newer V2.1 specification
 |- servers-config.json.example  # Multi-instance configuration example
 |- fake-start-server.sh         # Manual server-process simulator
+|- start-panel.ps1              # Windows startup script with optional host/port
+|- start-panel.sh               # Linux/macOS startup script with optional host/port
 |- tsconfig.json                # Strict backend build; includes only src/**/*.ts
 \- vitest.config.ts            # Default Node test environment
 ```
@@ -68,7 +71,11 @@ npm run build
 
 # Run the built server (build first)
 npm start
-npm start -- --port 3000
+npm start -- --host 127.0.0.1 --port 3000
+
+# Build when needed and start through the provided scripts
+.\start-panel.ps1
+./start-panel.sh --host 0.0.0.0 --port 8080
 
 # Run tests once, or run one file/name pattern
 npm test -- run
@@ -94,8 +101,8 @@ npx tsc --noEmit
 
 ### Architecture And Safety
 
-- The backend listens only on `127.0.0.1`, has no authentication, and is intended for access through an SSH tunnel. Do not expose it publicly without adding authentication and authorization.
-- `servers-config.json` is resolved from the process working directory. `--config <path>` is only a legacy migration fallback; it does not relocate the primary config. `--port` defaults to 3000. Invalid or unknown CLI arguments print usage and exit 1.
+- The backend defaults to `127.0.0.1`, has no authentication, and is intended for access through an SSH tunnel. `--host` can change the bind address, but binding to a non-loopback address exposes the panel to the network and must be protected by the operator.
+- `servers-config.json` is resolved from the process working directory. `--config <path>` is only a legacy migration fallback; it does not relocate the primary config. `--host` defaults to `127.0.0.1` and `--port` defaults to 3000. Invalid or unknown CLI arguments print usage and exit 1.
 - Every instance owns an absolute `.ini` path. Use absolute paths for production Workshop and start-script configuration as well. Runtime state and logs exist only in memory, so a panel restart does not rediscover or take ownership of an existing PZ process.
 - INI saving rebuilds parsed content: comments, blank lines, unknown lines, and original key order are not retained. Only strict UTF-8 and UTF-8 BOM are supported; `Mods` and `WorkshopItems` lists are normalized.
 - Workshop media requests must remain inside the configured Workshop root. Keep path checks compatible with POSIX paths, Windows backslashes, and drive letters.
