@@ -1,7 +1,16 @@
 import { state } from "./state.js";
 import { showToast, getStatusText } from "./utils.js";
-import { fetchServersConfig, fetchRuntimeSnapshot, startServerAPI, stopServerAPI, updateGlobalConfig } from "./api.js";
+import {
+  fetchServersConfig,
+  fetchRuntimeSnapshot,
+  startServerAPI,
+  stopServerAPI,
+  forceStopServerAPI,
+  restartServerAPI,
+  updateGlobalConfig,
+} from "./api.js";
 import { reconnectTerminal } from "./terminal.js";
+import { confirmAction } from "./confirm-dialog.js";
 
 // ===== Load Data =====
 
@@ -72,6 +81,8 @@ export function updateControlPanel() {
   const statusEl = document.getElementById("selectedServerStatus");
   const startBtn = document.getElementById("startServerBtn");
   const stopBtn = document.getElementById("stopServerBtn");
+  const forceStopBtn = document.getElementById("forceStopServerBtn");
+  const restartBtn = document.getElementById("restartServerBtn");
   const infoEl = document.getElementById("controlInfo");
   const pidEl = document.getElementById("serverPid");
   const startedAtEl = document.getElementById("serverStartedAt");
@@ -84,9 +95,12 @@ export function updateControlPanel() {
   const isRunning = status === "running";
   const isAnotherRunning = state.runtimeSnapshot?.activeServerId && state.runtimeSnapshot.activeServerId !== state.currentServerId;
   const isStartingOrStopping = status === "starting" || status === "stopping";
+  const isActive = isRunning || isStartingOrStopping;
 
   startBtn.disabled = isRunning || isAnotherRunning || isStartingOrStopping;
-  stopBtn.disabled = !isRunning || isStartingOrStopping;
+  stopBtn.disabled = !isRunning;
+  forceStopBtn.disabled = !isActive;
+  restartBtn.disabled = !isRunning;
   sendBtn.disabled = !isRunning;
 
   if (isRunning && runtime) {
@@ -100,39 +114,101 @@ export function updateControlPanel() {
 
 // ===== Server Control =====
 
+function getCurrentServerLabel() {
+  return state.currentServer?.name || state.currentServerId || "当前实例";
+}
+
+async function runServerControl(buttonId, request, messages) {
+  if (!state.currentServerId) return;
+
+  const btn = document.getElementById(buttonId);
+  if (btn) btn.disabled = true;
+  showToast(messages.progress, "info");
+
+  try {
+    state.runtimeSnapshot = await request();
+    showToast(messages.success, "success");
+    updateControlPanel();
+    if (messages.reconnectTerminal) {
+      reconnectTerminal();
+    }
+  } catch (error) {
+    showToast(messages.failure + error.message, "error");
+  } finally {
+    updateControlPanel();
+  }
+}
+
 export async function startServer() {
   if (!state.currentServerId) return;
 
-  const btn = document.getElementById("startServerBtn");
-  btn.disabled = true;
-  showToast("正在启动服务器...", "info");
+  const confirmed = await confirmAction({
+    title: "确认启动服务器",
+    message: `确定要启动实例“${getCurrentServerLabel()}”吗？\n同一时间只能运行一个服务器实例。`,
+    confirmText: "启动",
+  });
+  if (!confirmed) return;
 
-  try {
-    state.runtimeSnapshot = await startServerAPI(state.currentServerId);
-    showToast("服务器启动成功", "success");
-    updateControlPanel();
-    reconnectTerminal();
-  } catch (error) {
-    showToast("启动失败: " + error.message, "error");
-  } finally {
-    btn.disabled = false;
-  }
+  await runServerControl("startServerBtn", () => startServerAPI(state.currentServerId), {
+    progress: "正在启动服务器...",
+    success: "服务器启动成功",
+    failure: "启动失败: ",
+    reconnectTerminal: true,
+  });
 }
 
 export async function stopServer() {
   if (!state.currentServerId) return;
 
-  const btn = document.getElementById("stopServerBtn");
-  btn.disabled = true;
-  showToast("正在停止服务器...", "info");
+  const confirmed = await confirmAction({
+    title: "确认停止服务器",
+    message: `确定要停止实例“${getCurrentServerLabel()}”吗？\n将发送停止命令并等待服务器保存后退出。`,
+    confirmText: "停止",
+    danger: true,
+  });
+  if (!confirmed) return;
 
-  try {
-    state.runtimeSnapshot = await stopServerAPI(state.currentServerId);
-    showToast("服务器停止成功", "success");
-    updateControlPanel();
-  } catch (error) {
-    showToast("停止失败: " + error.message, "error");
-  }
+  await runServerControl("stopServerBtn", () => stopServerAPI(state.currentServerId), {
+    progress: "正在停止服务器...",
+    success: "服务器停止成功",
+    failure: "停止失败: ",
+  });
+}
+
+export async function forceStopServer() {
+  if (!state.currentServerId) return;
+
+  const confirmed = await confirmAction({
+    title: "确认强制停止",
+    message: `确定要强制停止实例“${getCurrentServerLabel()}”吗？\n将立即终止服务器进程，未保存的游戏进度可能丢失，此操作不可撤销。`,
+    confirmText: "强制停止",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  await runServerControl("forceStopServerBtn", () => forceStopServerAPI(state.currentServerId), {
+    progress: "正在强制停止服务器...",
+    success: "服务器已强制停止",
+    failure: "强制停止失败: ",
+  });
+}
+
+export async function restartServer() {
+  if (!state.currentServerId) return;
+
+  const confirmed = await confirmAction({
+    title: "确认重启服务器",
+    message: `确定要重启实例“${getCurrentServerLabel()}”吗？\n服务器将先停止再重新启动，期间玩家会断开连接。`,
+    confirmText: "重启",
+  });
+  if (!confirmed) return;
+
+  await runServerControl("restartServerBtn", () => restartServerAPI(state.currentServerId), {
+    progress: "正在重启服务器...",
+    success: "服务器重启成功",
+    failure: "重启失败: ",
+    reconnectTerminal: true,
+  });
 }
 
 // ===== Global Settings =====

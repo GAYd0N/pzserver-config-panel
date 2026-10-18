@@ -1,4 +1,4 @@
-import { state } from "./state.js";
+import { state, markConfigDirty } from "./state.js";
 import { showToast } from "./utils.js";
 import { fetchConfig, saveConfig as saveConfigAPI } from "./api.js";
 import { renderMods, renderWorkshopItems, renderMap } from "./mods.js";
@@ -155,7 +155,7 @@ function renderItemGroup(container, groupKey, groupName, items) {
       input.type = "checkbox";
       input.checked = item.value === "true";
       input.dataset.key = item.key;
-      input.addEventListener("change", () => { state.isDirty = true; });
+      input.addEventListener("change", () => { markConfigDirty(); });
       toggle.appendChild(input);
 
       const span = document.createElement("span");
@@ -170,7 +170,7 @@ function renderItemGroup(container, groupKey, groupName, items) {
       input.className = "item-input";
       input.value = item.value;
       input.dataset.key = item.key;
-      input.addEventListener("input", () => { state.isDirty = true; });
+      input.addEventListener("input", () => { markConfigDirty(); });
       div.appendChild(input);
     }
 
@@ -206,12 +206,19 @@ export async function saveConfigHandler() {
   saveButton.disabled = true;
   showToast("保存中...", "info");
 
+  const revision = state.configRevision;
+
   try {
     const items = gatherConfigItems();
     await saveConfigAPI(state.currentServerId, items);
-    state.isDirty = false;
-    showToast("保存成功", "success");
-    await loadConfig();
+    if (state.configRevision === revision) {
+      state.isDirty = false;
+      showToast("保存成功", "success");
+      await loadConfig();
+    } else {
+      showToast("保存成功", "success");
+      scheduleAutoSave();
+    }
   } catch (error) {
     showToast("保存失败: " + error.message, "error");
     console.error(error);
@@ -221,26 +228,49 @@ export async function saveConfigHandler() {
 }
 
 let _autoSaving = false;
+let _autoSaveDebounceTimer = null;
+
+function scheduleAutoSave() {
+  if (_autoSaveDebounceTimer) {
+    clearTimeout(_autoSaveDebounceTimer);
+  }
+
+  _autoSaveDebounceTimer = setTimeout(() => {
+    _autoSaveDebounceTimer = null;
+    void autoSave();
+  }, 500);
+}
 
 async function autoSave() {
   if (!state.currentServerId || !state.isDirty || _autoSaving) return;
   _autoSaving = true;
+  const revision = state.configRevision;
+  let succeeded = false;
+
   try {
     const items = gatherConfigItems();
     await saveConfigAPI(state.currentServerId, items);
-    state.isDirty = false;
-  } catch {
-    // silent on auto-save failure
+    succeeded = true;
+    if (state.configRevision === revision) {
+      state.isDirty = false;
+    }
+  } catch (error) {
+    console.error("自动保存失败:", error);
   } finally {
     _autoSaving = false;
+    if (succeeded && state.isDirty) {
+      scheduleAutoSave();
+    }
   }
 }
 
-let _autoSaveTimer = null;
+document.addEventListener("config-dirty", scheduleAutoSave);
+
+let _autoSaveInterval = null;
 
 function startAutoSave() {
-  if (_autoSaveTimer) return;
-  _autoSaveTimer = setInterval(autoSave, 30000);
+  if (_autoSaveInterval) return;
+  _autoSaveInterval = setInterval(autoSave, 30000);
 }
 
 export async function loadConfig() {

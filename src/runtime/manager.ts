@@ -23,6 +23,7 @@ type RuntimeRecord = {
   process: ChildProcessWithoutNullStreams | null;
   terminalBuffer: TerminalRingBuffer;
   listeners: Set<(line: TerminalLine) => void>;
+  suppressStartFailure: boolean;
 };
 
 type SpawnProcess = (
@@ -139,6 +140,8 @@ export class ServerRuntimeManager {
       throw new AppError("SERVER_ALREADY_RUNNING", `Server is already active: ${server.id}`);
     }
 
+    record.suppressStartFailure = false;
+
     this.ensureNoAnotherServerActive(server.id);
 
     record.state.status = "starting";
@@ -152,7 +155,7 @@ export class ServerRuntimeManager {
     try {
       child = this.spawnProcess(startCommand, {
         shell: true,
-        detached: true,
+        detached: process.platform !== "win32",
         stdio: ["pipe", "pipe", "pipe"],
       });
     } catch (error) {
@@ -228,6 +231,53 @@ export class ServerRuntimeManager {
     return cloneState(record.state);
   }
 
+  public async forceStopServer(
+    server: ServerInstance,
+    forceKillTimeoutMs: number,
+  ): Promise<ServerRuntimeState> {
+    const record = this.ensureRecord(server.id);
+    if (!isActiveStatus(record.state.status) || !record.process) {
+      throw new AppError("SERVER_NOT_RUNNING", `Server is not running: ${server.id}`);
+    }
+
+    const child = record.process;
+    record.suppressStartFailure = true;
+    record.state.status = "stopping";
+    this.killProcess(record, "SIGKILL");
+
+    const exited = await this.waitForExit(child, forceKillTimeoutMs);
+    if (!exited) {
+      record.state.status = "error";
+      record.state.pid = null;
+      record.state.startedAt = null;
+      record.state.lastExit = {
+        code: null,
+        signal: null,
+        at: this.now().toISOString(),
+      };
+      if (this.activeServerId === server.id) {
+        this.activeServerId = null;
+      }
+      throw new AppError("STOP_TIMEOUT", `Timed out force stopping server: ${server.id}`);
+    }
+
+    return cloneState(record.state);
+  }
+
+  public async restartServer(
+    server: ServerInstance,
+    globalConfig: ServerGlobalConfig,
+    options: StopServerOptions,
+  ): Promise<ServerRuntimeState> {
+    const record = this.ensureRecord(server.id);
+    if (record.state.status !== "running") {
+      throw new AppError("SERVER_NOT_RUNNING", `Server is not running: ${server.id}`);
+    }
+
+    await this.stopServer(server, options);
+    return this.startServer(server, globalConfig);
+  }
+
   private ensureRecord(serverId: string): RuntimeRecord {
     const existing = this.records.get(serverId);
     if (existing) {
@@ -239,6 +289,7 @@ export class ServerRuntimeManager {
       process: null,
       terminalBuffer: new TerminalRingBuffer(),
       listeners: new Set(),
+      suppressStartFailure: false,
     };
     this.records.set(serverId, created);
     return created;
@@ -477,6 +528,11 @@ export class ServerRuntimeManager {
 
   private markStartFailed(serverId: string): void {
     const record = this.ensureRecord(serverId);
+    if (record.suppressStartFailure) {
+      record.suppressStartFailure = false;
+      return;
+    }
+
     record.process = null;
     record.state.status = "error";
     record.state.pid = null;

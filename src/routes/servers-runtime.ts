@@ -79,5 +79,31 @@ export function createServersRuntimeRouter(
     }
   });
 
+  router.post("/servers/:id/force-stop", async (req, res) => {
+    try {
+      const config = await loadServersConfig({ cliConfigPath });
+      const server = resolveServerById(config.servers, req.params.id);
+      await runtimeManager.forceStopServer(server, config.global.forceKillTimeoutMs);
+      res.json(runtimeManager.getRuntimeSnapshot(config.servers));
+    } catch (error) {
+      sendRouteError(error, res);
+    }
+  });
+
+  router.post("/servers/:id/restart", async (req, res) => {
+    try {
+      const config = await loadServersConfig({ cliConfigPath });
+      const server = resolveServerById(config.servers, req.params.id);
+      const stopOptions = buildStopOptions(
+        config.global.stopGraceTimeoutMs,
+        config.global.forceKillTimeoutMs,
+      );
+      await runtimeManager.restartServer(server, config.global, stopOptions);
+      res.json(runtimeManager.getRuntimeSnapshot(config.servers));
+    } catch (error) {
+      sendRouteError(error, res);
+    }
+  });
+
   return router;
 }

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { state } from "../../public/js/state.js";
-import { autoSortMods } from "../../public/js/mods.js";
+import { autoSortMods, renderMods, addListItem, confirmAddItem } from "../../public/js/mods.js";
 
 describe("mods.js", () => {
   beforeEach(() => {
@@ -12,11 +12,18 @@ describe("mods.js", () => {
     state.workshopItemsItems = [];
     state.mapItems = [];
     state.configData = null;
+    state.isDirty = false;
+    state.configRevision = 0;
 
     // Set up required DOM elements
     document.body.innerHTML = `
       <div id="modsList"></div>
       <div id="toastContainer"></div>
+      <div id="addItemDialog" class="dialog-overlay">
+        <h3 id="dialogTitle"></h3>
+        <label id="dialogLabel"></label>
+        <input id="dialogInput" />
+      </div>
     `;
   });
 
@@ -133,5 +140,28 @@ describe("mods.js", () => {
 
     // Without dependencies, should be alphabetically sorted
     expect(state.modsItems).toEqual(["modA", "modB", "modC"]);
+  });
+
+  it("deletes a mod from state and re-renders the list", () => {
+    state.modsItems = ["modA", "modB"];
+    renderMods();
+
+    document.querySelector("#modsList .list-item .list-button.delete").click();
+
+    expect(state.modsItems).toEqual(["modB"]);
+    expect(state.isDirty).toBe(true);
+    expect(document.querySelectorAll("#modsList .list-item")).toHaveLength(1);
+  });
+
+  it("adds a mod from the dialog and marks configuration dirty", () => {
+    state.modsItems = ["modA"];
+
+    addListItem("Mods");
+    document.getElementById("dialogInput").value = "modB";
+    confirmAddItem();
+
+    expect(state.modsItems).toEqual(["modA", "modB"]);
+    expect(state.isDirty).toBe(true);
+    expect(document.getElementById("addItemDialog").classList.contains("active")).toBe(false);
   });
 });

@@ -17,4 +17,11 @@ export const state = {
   autoScroll: true,
 
   isDirty: false,
+  configRevision: 0,
 };
+
+export function markConfigDirty() {
+  state.isDirty = true;
+  state.configRevision += 1;
+  document.dispatchEvent(new CustomEvent("config-dirty"));
+}

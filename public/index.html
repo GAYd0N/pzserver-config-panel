@@ -47,13 +47,21 @@
         </div>
         
         <div class="control-actions">
-          <button id="startServerBtn" class="control-btn start">
+          <button id="startServerBtn" class="control-btn start" title="启动服务器">
             <span class="btn-icon">▶</span>
-            启动服务器
+            启动
           </button>
-          <button id="stopServerBtn" class="control-btn stop">
+          <button id="stopServerBtn" class="control-btn stop" title="优雅停止服务器">
             <span class="btn-icon">■</span>
-            停止服务器
+            停止
+          </button>
+          <button id="forceStopServerBtn" class="control-btn force-stop" title="立即强制终止服务器进程">
+            <span class="btn-icon">✕</span>
+            强制停止
+          </button>
+          <button id="restartServerBtn" class="control-btn restart" title="停止后重新启动服务器">
+            <span class="btn-icon">↻</span>
+            重启
           </button>
         </div>
 

@@ -27,8 +27,8 @@ function createServer(overrides: Partial<ServerInstance>): ServerInstance {
   };
 }
 
-function createFakeProcess(): ChildProcessWithoutNullStreams & { simulateExit: (code: number, signal: null) => void } {
-  const proc = new EventEmitter() as unknown as ChildProcessWithoutNullStreams & { simulateExit: (code: number, signal: null) => void };
+function createFakeProcess(): ChildProcessWithoutNullStreams & { simulateExit: (code: number, signal: NodeJS.Signals | null) => void } {
+  const proc = new EventEmitter() as unknown as ChildProcessWithoutNullStreams & { simulateExit: (code: number, signal: NodeJS.Signals | null) => void };
   proc.pid = 12345;
   proc.exitCode = 0;
   proc.signalCode = null;
@@ -44,7 +44,7 @@ function createFakeProcess(): ChildProcessWithoutNullStreams & { simulateExit: (
     }),
   } as any;
 
-  proc.simulateExit = (code: number, signal: null) => {
+  proc.simulateExit = (code: number, signal: NodeJS.Signals | null) => {
     proc.exitCode = code;
     proc.signalCode = signal;
     proc.emit("exit", code, signal);
@@ -131,6 +131,100 @@ describe("ServerRuntimeManager", () => {
       code: "SERVER_NOT_RUNNING",
       status: 409,
     });
+  });
+
+  it("returns SERVER_NOT_RUNNING when force stopping stopped server", async () => {
+    const manager = new ServerRuntimeManager();
+    const server = createServer({ id: "stopped-force", name: "Stopped Force" });
+
+    await expect(manager.forceStopServer(server, 500)).rejects.toMatchObject({
+      code: "SERVER_NOT_RUNNING",
+      status: 409,
+    });
+  });
+
+  it("force stops a running server and records the termination signal", async () => {
+    const proc = createFakeProcess();
+    proc.pid = undefined;
+    proc.exitCode = null;
+    const manager = new ServerRuntimeManager({ startupProbeMs: 0, spawnProcess: createSpawnMock(proc) });
+    const server = createServer({ id: "force", name: "Force" });
+
+    await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+
+    const forcePromise = manager.forceStopServer(server, 500);
+    proc.simulateExit(137, "SIGKILL");
+    const state = await forcePromise;
+
+    expect(state.status).toBe("stopped");
+    expect(state.lastExit?.signal).toBe("SIGKILL");
+    expect(state.pid).toBeNull();
+    expect(manager.getRuntimeSnapshot([server]).activeServerId).toBeNull();
+  });
+
+  it("force stopping during startup leaves the server stopped rather than errored", async () => {
+    const proc = createFakeProcess();
+    proc.pid = undefined;
+    proc.exitCode = null;
+    const manager = new ServerRuntimeManager({ startupProbeMs: 500, spawnProcess: createSpawnMock(proc) });
+    const server = createServer({ id: "force-starting", name: "Force Starting" });
+
+    const startPromise = manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+    const forcePromise = manager.forceStopServer(server, 500);
+    proc.simulateExit(137, "SIGKILL");
+
+    await expect(startPromise).rejects.toMatchObject({ code: "PROCESS_SPAWN_FAILED" });
+    const state = await forcePromise;
+
+    expect(state.status).toBe("stopped");
+    expect(manager.getRuntimeSnapshot([server]).activeServerId).toBeNull();
+  });
+
+  it("restarts a running server after a graceful stop", async () => {
+    const proc = createFakeProcess();
+    proc.pid = undefined;
+    proc.exitCode = null;
+    const spawnMock = createSpawnMock(proc);
+    const manager = new ServerRuntimeManager({ startupProbeMs: 0, spawnProcess: spawnMock });
+    const server = createServer({ id: "restart", name: "Restart" });
+
+    await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+
+    const restartPromise = manager.restartServer(server, DEFAULT_GLOBAL_CONFIG, STOP_OPTIONS);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    proc.simulateExit(0, null);
+    const state = await restartPromise;
+
+    expect(state.status).toBe("running");
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+
+    proc.simulateExit(0, null);
+  });
+
+  it("returns SERVER_NOT_RUNNING when restarting stopped server", async () => {
+    const manager = new ServerRuntimeManager();
+    const server = createServer({ id: "stopped-restart", name: "Stopped Restart" });
+
+    await expect(
+      manager.restartServer(server, DEFAULT_GLOBAL_CONFIG, STOP_OPTIONS),
+    ).rejects.toMatchObject({
+      code: "SERVER_NOT_RUNNING",
+      status: 409,
+    });
+  });
+
+  it("uses a detached process group only on non-Windows platforms", async () => {
+    const proc = createFakeProcess();
+    const spawnMock = createSpawnMock(proc);
+    const manager = new ServerRuntimeManager({ startupProbeMs: 0, spawnProcess: spawnMock });
+    const server = createServer({ id: "spawn-options", name: "Spawn Options" });
+
+    await manager.startServer(server, DEFAULT_GLOBAL_CONFIG);
+
+    const spawnOptions = spawnMock.mock.calls[0][1];
+    expect(spawnOptions.detached).toBe(process.platform !== "win32");
+
+    await manager.stopServer(server, STOP_OPTIONS);
   });
 
   it("marks immediate start exit as PROCESS_SPAWN_FAILED", async () => {

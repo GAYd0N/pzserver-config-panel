@@ -101,6 +101,38 @@ describe("api.js", () => {
     });
   });
 
+  describe("forceStopServerAPI", () => {
+    it("force stops a server", async () => {
+      const data = { serverId: "server-1", status: "stopped" };
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse(data));
+
+      const result = await api.forceStopServerAPI("server-1");
+
+      expect(result).toEqual(data);
+      expect(fetchMock).toHaveBeenCalledWith("/api/servers/server-1/force-stop", { method: "POST" });
+    });
+
+    it("throws on failure", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockResponse({ error: { message: "not running" } }, false, 409),
+      );
+
+      await expect(api.forceStopServerAPI("server-1")).rejects.toThrow("not running");
+    });
+  });
+
+  describe("restartServerAPI", () => {
+    it("restarts a server", async () => {
+      const data = { serverId: "server-1", status: "running" };
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse(data));
+
+      const result = await api.restartServerAPI("server-1");
+
+      expect(result).toEqual(data);
+      expect(fetchMock).toHaveBeenCalledWith("/api/servers/server-1/restart", { method: "POST" });
+    });
+  });
+
   describe("sendTerminalCommands", () => {
     it("sends terminal commands", async () => {
       const data = { successCount: 2, errors: [] };

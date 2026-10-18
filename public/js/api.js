@@ -50,6 +50,24 @@ export async function stopServerAPI(serverId) {
   return data;
 }
 
+export async function forceStopServerAPI(serverId) {
+  const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/force-stop`, {
+    method: "POST",
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "强制停止失败");
+  return data;
+}
+
+export async function restartServerAPI(serverId) {
+  const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/restart`, {
+    method: "POST",
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "重启失败");
+  return data;
+}
+
 export async function updateGlobalConfig(globalConfig) {
   const response = await fetch("/api/global-config", {
     method: "PUT",

@@ -1,6 +1,18 @@
 import { showToast, escapeHtml, getStatusText } from "./utils.js";
 import { initTheme } from "./theme.js";
-import { fetchServersConfig, fetchRuntimeSnapshot, createServer, updateServer, deleteServer, updateGlobalConfig, startServerAPI, stopServerAPI } from "./api.js";
+import {
+  fetchServersConfig,
+  fetchRuntimeSnapshot,
+  createServer,
+  updateServer,
+  deleteServer,
+  updateGlobalConfig,
+  startServerAPI,
+  stopServerAPI,
+  forceStopServerAPI,
+  restartServerAPI,
+} from "./api.js";
+import { confirmAction } from "./confirm-dialog.js";
 
 let serversConfig = null;
 let runtimeSnapshot = null;
@@ -61,7 +73,10 @@ function renderServers() {
 
   grid.innerHTML = serversConfig.servers.map((server) => {
     const status = getServerStatus(server.id);
-    const isRunning = status === "running" || status === "starting";
+    const isRunning = status === "running";
+    const isActive = status === "running" || status === "starting" || status === "stopping";
+    const anotherServerActive = runtimeSnapshot?.activeServerId && runtimeSnapshot.activeServerId !== server.id;
+    const canStart = !isActive && !anotherServerActive;
 
     return `
       <div class="server-card ${status}" data-server-id="${server.id}">
@@ -77,8 +92,19 @@ function renderServers() {
           <button class="server-card-btn primary manage-btn" data-server-id="${server.id}">
             进入管理
           </button>
-          <button class="server-card-btn secondary toggle-btn" data-server-id="${server.id}" ${isRunning ? '' : 'disabled'}>
-            ${isRunning ? '停止' : '启动'}
+        </div>
+        <div class="server-card-actions server-card-controls">
+          <button class="server-card-btn compact start server-control-btn" data-server-id="${server.id}" data-action="start" ${canStart ? "" : "disabled"}>
+            启动
+          </button>
+          <button class="server-card-btn compact stop server-control-btn" data-server-id="${server.id}" data-action="stop" ${isRunning ? "" : "disabled"}>
+            停止
+          </button>
+          <button class="server-card-btn compact force-stop server-control-btn" data-server-id="${server.id}" data-action="force-stop" ${isActive ? "" : "disabled"}>
+            强制停止
+          </button>
+          <button class="server-card-btn compact restart server-control-btn" data-server-id="${server.id}" data-action="restart" ${isRunning ? "" : "disabled"}>
+            重启
           </button>
         </div>
       </div>
@@ -101,16 +127,20 @@ function renderServers() {
     });
   });
 
-  grid.querySelectorAll(".toggle-btn").forEach((btn) => {
+  grid.querySelectorAll(".server-control-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const serverId = btn.dataset.serverId;
-      const status = getServerStatus(serverId);
+      const action = btn.dataset.action;
 
-      if (status === "running") {
-        stopServerHandler(serverId);
-      } else if (status === "stopped") {
+      if (action === "start") {
         startServerHandler(serverId);
+      } else if (action === "stop") {
+        stopServerHandler(serverId);
+      } else if (action === "force-stop") {
+        forceStopServerHandler(serverId);
+      } else if (action === "restart") {
+        restartServerHandler(serverId);
       }
     });
   });
@@ -123,26 +153,79 @@ function manageServer(serverId) {
 }
 
 async function startServerHandler(serverId) {
-  try {
-    showLoading(true);
-    await startServerAPI(serverId);
-    showToast("服务器启动成功", "success");
-    await loadData();
-  } catch (error) {
-    showToast("启动失败: " + error.message, "error");
-  } finally {
-    showLoading(false);
-  }
+  const confirmed = await confirmAction({
+    title: "确认启动服务器",
+    message: `确定要启动实例“${getServerLabel(serverId)}”吗？\n同一时间只能运行一个服务器实例。`,
+    confirmText: "启动",
+  });
+  if (!confirmed) return;
+
+  await runServerAction(
+    () => startServerAPI(serverId),
+    "服务器启动成功",
+    "启动失败: ",
+  );
 }
 
 async function stopServerHandler(serverId) {
+  const confirmed = await confirmAction({
+    title: "确认停止服务器",
+    message: `确定要停止实例“${getServerLabel(serverId)}”吗？\n将发送停止命令并等待服务器保存后退出。`,
+    confirmText: "停止",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  await runServerAction(
+    () => stopServerAPI(serverId),
+    "服务器停止成功",
+    "停止失败: ",
+  );
+}
+
+async function forceStopServerHandler(serverId) {
+  const confirmed = await confirmAction({
+    title: "确认强制停止",
+    message: `确定要强制停止实例“${getServerLabel(serverId)}”吗？\n将立即终止服务器进程，未保存的游戏进度可能丢失，此操作不可撤销。`,
+    confirmText: "强制停止",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  await runServerAction(
+    () => forceStopServerAPI(serverId),
+    "服务器已强制停止",
+    "强制停止失败: ",
+  );
+}
+
+async function restartServerHandler(serverId) {
+  const confirmed = await confirmAction({
+    title: "确认重启服务器",
+    message: `确定要重启实例“${getServerLabel(serverId)}”吗？\n服务器将先停止再重新启动，期间玩家会断开连接。`,
+    confirmText: "重启",
+  });
+  if (!confirmed) return;
+
+  await runServerAction(
+    () => restartServerAPI(serverId),
+    "服务器重启成功",
+    "重启失败: ",
+  );
+}
+
+function getServerLabel(serverId) {
+  return serversConfig?.servers.find((server) => server.id === serverId)?.name || serverId;
+}
+
+async function runServerAction(request, successMessage, failurePrefix) {
   try {
     showLoading(true);
-    await stopServerAPI(serverId);
-    showToast("服务器停止成功", "success");
+    await request();
+    showToast(successMessage, "success");
     await loadData();
   } catch (error) {
-    showToast("停止失败: " + error.message, "error");
+    showToast(failurePrefix + error.message, "error");
   } finally {
     showLoading(false);
   }
@@ -229,7 +312,14 @@ async function saveServer() {
 async function deleteServerHandler() {
   if (!currentEditingServerId) return;
 
-  if (!confirm("确定要删除此服务器实例吗？此操作不可恢复。")) return;
+  const serverName = serversConfig?.servers.find((server) => server.id === currentEditingServerId)?.name || currentEditingServerId;
+  const confirmed = await confirmAction({
+    title: "删除服务器实例",
+    message: `确定要删除实例“${serverName}”吗？\n此操作只会移除面板中的实例配置，不会删除实际的 INI 文件，但操作不可撤销。`,
+    confirmText: "删除",
+    danger: true,
+  });
+  if (!confirmed) return;
 
   try {
     showLoading(true);

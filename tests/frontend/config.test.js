@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { state } from "../../public/js/state.js";
 import { renderConfig, gatherConfigItems } from "../../public/js/config.js";
+import { renderMods, addListItem, confirmAddItem } from "../../public/js/mods.js";
 
 describe("config.js", () => {
   beforeEach(() => {
@@ -13,6 +14,9 @@ describe("config.js", () => {
     state.workshopItemsData = [];
     state.mapItems = [];
     state.groupedNormalItems = {};
+    state.currentServerId = "server-1";
+    state.isDirty = false;
+    state.configRevision = 0;
 
     document.body.innerHTML = `
       <div id="normalItemsList"></div>
@@ -21,7 +25,18 @@ describe("config.js", () => {
       <div id="mapList"></div>
       <div id="availableMapsSection" style="display:none"></div>
       <div id="availableMapsList"></div>
+      <div id="toastContainer"></div>
+      <div id="addItemDialog" class="dialog-overlay">
+        <h3 id="dialogTitle"></h3>
+        <label id="dialogLabel"></label>
+        <input id="dialogInput" />
+      </div>
     `;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("renderConfig parses Mods, WorkshopItems, Map from config items", () => {
@@ -114,5 +129,51 @@ describe("config.js", () => {
 
     expect(items).toContainEqual({ key: "PVP", value: "false" });
     expect(items).toContainEqual({ key: "PauseEmpty", value: "true" });
+  });
+
+  it("auto-saves mod deletions to the config API", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ ok: true }),
+    });
+
+    state.modsItems = ["modA", "modB"];
+    renderMods();
+    document.querySelector("#modsList .list-item .list-button.delete").click();
+
+    expect(state.isDirty).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/config?serverId=server-1");
+    expect(options.method).toBe("PUT");
+    const body = JSON.parse(options.body);
+    expect(body.items).toContainEqual({ key: "Mods", value: "modB" });
+    expect(state.isDirty).toBe(false);
+  });
+
+  it("auto-saves mods added through the dialog", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ ok: true }),
+    });
+
+    state.modsItems = ["modA"];
+    addListItem("Mods");
+    document.getElementById("dialogInput").value = "modB";
+    confirmAddItem();
+
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.items).toContainEqual({ key: "Mods", value: "modA;modB" });
+    expect(state.isDirty).toBe(false);
   });
 });

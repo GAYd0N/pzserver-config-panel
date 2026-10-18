@@ -20,6 +20,8 @@ describe("state.js", () => {
     expect(state.commandSuggestions).toEqual([]);
     expect(state.selectedSuggestionIndex).toBe(-1);
     expect(state.autoScroll).toBe(true);
+    expect(state.isDirty).toBe(false);
+    expect(state.configRevision).toBe(0);
   });
 
   it("is mutable and allows setting values", () => {

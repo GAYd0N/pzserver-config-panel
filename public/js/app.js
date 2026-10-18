@@ -4,7 +4,7 @@ import { initTheme } from "./theme.js";
 import { loadConfig, renderConfig, saveConfigHandler, toggleCollapse } from "./config.js";
 import { addListItem, hideDialog, confirmAddItem, autoSortMods } from "./mods.js";
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
-import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, saveGlobalConfig } from "./server-manager.js";
+import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig } from "./server-manager.js";
 
 function switchTab(tabName) {
   document.querySelectorAll(".tab-button").forEach((button) => {
@@ -17,7 +17,7 @@ function switchTab(tabName) {
   document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.add("active");
   document.getElementById(`${tabName}-tab`).classList.add("active");
 
-  if (tabName === "config" || tabName === "mods") {
+  if ((tabName === "config" || tabName === "mods") && (!state.configData || !state.isDirty)) {
     loadConfig();
   }
 }
@@ -64,6 +64,8 @@ async function init() {
 
   document.getElementById("startServerBtn").addEventListener("click", startServer);
   document.getElementById("stopServerBtn").addEventListener("click", stopServer);
+  document.getElementById("forceStopServerBtn").addEventListener("click", forceStopServer);
+  document.getElementById("restartServerBtn").addEventListener("click", restartServer);
 
   document.getElementById("autoScrollToggle").addEventListener("change", (e) => {
     state.autoScroll = e.target.checked;

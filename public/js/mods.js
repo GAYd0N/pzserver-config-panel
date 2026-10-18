@@ -1,4 +1,4 @@
-import { state } from "./state.js";
+import { state, markConfigDirty } from "./state.js";
 import { showToast, escapeHtml } from "./utils.js";
 import { parseDescriptionTags } from "./description-parser.js";
 
@@ -212,7 +212,7 @@ function renderSubModCard(subMod) {
     }
 
     renderMods();
-    state.isDirty = true;
+    markConfigDirty();
   };
 
   const toggleSpan = document.createElement("span");
@@ -470,7 +470,7 @@ function toggleMapItem(mapName) {
   } else {
     state.mapItems.push(mapName);
   }
-  state.isDirty = true;
+  markConfigDirty();
   renderMap();
 }
 
@@ -495,7 +495,7 @@ function moveListItem(type, index, direction) {
   const temp = arr[index];
   arr[index] = arr[index + direction];
   arr[index + direction] = temp;
-  state.isDirty = true;
+  markConfigDirty();
   rerenderByType(type);
 }
 
@@ -522,7 +522,7 @@ function deleteListItem(type, index) {
   }
 
   arr.splice(index, 1);
-  markDirty();
+  markConfigDirty();
   rerenderByType(type);
   if (type === "WorkshopItems") {
     renderMods();
@@ -535,7 +535,7 @@ function dragReorderItems(type, fromIndex, toIndex) {
   if (!arr) return;
   const [moved] = arr.splice(fromIndex, 1);
   arr.splice(toIndex, 0, moved);
-  state.isDirty = true;
+  markConfigDirty();
   rerenderByType(type);
 }
 
@@ -594,7 +594,7 @@ export function confirmAddItem() {
     renderMap();
   }
 
-  state.isDirty = true;
+  markConfigDirty();
   hideDialog();
 }
 
