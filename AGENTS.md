@@ -22,6 +22,7 @@ pzserver-config-panel/
 |  |  |- servers-config.ts      # Multi-instance persistence, validation, defaults, and migration
 |  |  |- service.ts             # INI read/write orchestration, locking, and backup flow
 |  |  |- workshop-parser.ts     # Workshop mod.info and map discovery
+|  |  |- workshop-files.ts      # Safe recursive removal of Workshop item directories
 |  |  \- ...                    # INI parsing, serialization, encoding, lock, and backup helpers
 |  |- runtime/
 |  |  |- manager.ts             # Single-active child-process lifecycle and terminal control
@@ -106,13 +107,14 @@ npx tsc --noEmit
 - Every instance owns an absolute `.ini` path. Use absolute paths for production Workshop and start-script configuration as well. Runtime state and logs exist only in memory, so a panel restart does not rediscover or take ownership of an existing PZ process.
 - INI saving rebuilds parsed content: comments, blank lines, unknown lines, and original key order are not retained. Only strict UTF-8 and UTF-8 BOM are supported; `Mods` and `WorkshopItems` lists are normalized.
 - Workshop media requests must remain inside the configured Workshop root. Keep path checks compatible with POSIX paths, Windows backslashes, and drive letters.
+- Workshop directory deletion must validate the item id, resolve it inside the configured Workshop root, reject symlinks/non-directories, and remove only the item directory. File deletion happens before config mutation; on failure, leave config unchanged.
 - Process termination uses process groups on Linux/macOS and `taskkill` on Windows. Preserve cross-platform behavior when changing runtime code.
 
 ### API Boundaries
 
-- Config: `GET/PUT /api/config?serverId=<id>`, `GET /api/workshop-poster?rel=<path>`
+- Config: `GET/PUT /api/config?serverId=<id>`, `GET /api/workshop-poster?rel=<path>`, `DELETE /api/workshop-items/:itemId`
 - Instances: `GET/PUT /api/servers-config`, `GET/PUT /api/global-config`, and CRUD under `/api/servers`
-- Runtime: `GET /api/servers/runtime`, `POST /api/servers/:id/start`, `POST /api/servers/:id/stop`
+- Runtime: `GET /api/servers/runtime`, `POST /api/servers/:id/start`, `POST /api/servers/:id/stop`, `POST /api/servers/:id/force-stop`, `POST /api/servers/:id/restart`
 - Terminal: `GET /api/servers/:id/terminal/stream`, `POST /api/servers/:id/terminal/commands`, `GET /api/terminal/commands?prefix=<text>`
 - Compatibility: `/api/paths` exists only for legacy clients and migration support.
 

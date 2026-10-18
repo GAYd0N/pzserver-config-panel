@@ -202,4 +202,26 @@ describe("api.js", () => {
       expect(result).toEqual(data);
     });
   });
+
+  describe("deleteWorkshopItemFiles", () => {
+    it("deletes workshop item files", async () => {
+      const data = { ok: true, removed: true };
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse(data));
+
+      const result = await api.deleteWorkshopItemFiles("123456789");
+
+      expect(result).toEqual(data);
+      expect(fetchMock).toHaveBeenCalledWith("/api/workshop-items/123456789", {
+        method: "DELETE",
+      });
+    });
+
+    it("throws on failure", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockResponse({ error: { message: "permission denied" } }, false, 500),
+      );
+
+      await expect(api.deleteWorkshopItemFiles("123456789")).rejects.toThrow("permission denied");
+    });
+  });
 });

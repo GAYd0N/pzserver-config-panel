@@ -81,6 +81,17 @@ export async function updateGlobalConfig(globalConfig) {
   return response.json();
 }
 
+export async function deleteWorkshopItemFiles(itemId) {
+  const response = await fetch(`/api/workshop-items/${encodeURIComponent(itemId)}`, {
+    method: "DELETE",
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || "删除创意工坊文件失败");
+  }
+  return data;
+}
+
 export async function fetchCommandSuggestions(prefix) {
   const response = await fetch(`/api/terminal/commands?prefix=${encodeURIComponent(prefix)}`);
   if (!response.ok) return [];

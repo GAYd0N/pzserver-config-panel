@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { showToast, getUrlParam } from "./utils.js";
 import { initTheme } from "./theme.js";
 import { loadConfig, renderConfig, saveConfigHandler, toggleCollapse } from "./config.js";
-import { addListItem, hideDialog, confirmAddItem, autoSortMods } from "./mods.js";
+import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeletions } from "./mods.js";
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
 import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig } from "./server-manager.js";
 
@@ -17,7 +17,7 @@ function switchTab(tabName) {
   document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.add("active");
   document.getElementById(`${tabName}-tab`).classList.add("active");
 
-  if ((tabName === "config" || tabName === "mods") && (!state.configData || !state.isDirty)) {
+  if ((tabName === "config" || tabName === "mods") && (!state.configData || (!state.isDirty && !hasPendingDeletions()))) {
     loadConfig();
   }
 }

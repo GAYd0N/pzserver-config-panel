@@ -1,8 +1,101 @@
 import { state, markConfigDirty } from "./state.js";
 import { showToast, escapeHtml } from "./utils.js";
 import { parseDescriptionTags } from "./description-parser.js";
+import { confirmAction } from "./confirm-dialog.js";
+import { deleteWorkshopItemFiles } from "./api.js";
 
 let currentAddType = null;
+
+const pendingDeletions = {
+  Mods: new Set(),
+  WorkshopItems: new Set(),
+  Map: new Set(),
+};
+
+// ===== Pending Deletions =====
+
+function getPendingDeletionSet(type) {
+  return pendingDeletions[type] || null;
+}
+
+function isPendingDeletion(type, item) {
+  const pending = getPendingDeletionSet(type);
+  return pending ? pending.has(item) : false;
+}
+
+function togglePendingDelete(type, item) {
+  const pending = getPendingDeletionSet(type);
+  if (!pending) return;
+
+  const wasPending = pending.has(item);
+  if (wasPending) {
+    pending.delete(item);
+  } else {
+    pending.add(item);
+  }
+
+  rerenderByType(type);
+  showToast(
+    wasPending ? "已撤销删除" : "已标记删除，保存配置后生效",
+    "info",
+  );
+}
+
+export function hasPendingDeletions() {
+  return Object.values(pendingDeletions).some((pending) => pending.size > 0);
+}
+
+export function filterPendingDeletions(type, items) {
+  const pending = getPendingDeletionSet(type);
+  if (!pending || pending.size === 0) {
+    return items;
+  }
+  return items.filter((item) => !pending.has(item));
+}
+
+export function commitPendingDeletions() {
+  let changed = false;
+
+  for (const type of Object.keys(pendingDeletions)) {
+    const pending = pendingDeletions[type];
+    if (pending.size === 0) continue;
+
+    const arr = getItemsArray(type);
+    if (arr) {
+      for (let i = arr.length - 1; i >= 0; i -= 1) {
+        if (pending.has(arr[i])) {
+          arr.splice(i, 1);
+          changed = true;
+        }
+      }
+    }
+    pending.clear();
+  }
+
+  return changed;
+}
+
+export function clearPendingDeletions() {
+  for (const pending of Object.values(pendingDeletions)) {
+    pending.clear();
+  }
+}
+
+function prunePendingDeletions() {
+  for (const type of Object.keys(pendingDeletions)) {
+    const pending = pendingDeletions[type];
+    const arr = getItemsArray(type);
+    if (!arr) {
+      pending.clear();
+      continue;
+    }
+    for (const item of pending) {
+      if (!arr.includes(item)) {
+        pending.delete(item);
+      }
+    }
+  }
+}
 
 // ===== Mod Meta Map =====
 
@@ -280,9 +373,10 @@ export function renderWorkshopItems() {
     buttonsDiv.appendChild(downBtn);
 
     const deleteBtn = document.createElement("button");
-    deleteBtn.className = "list-button delete";
-    deleteBtn.textContent = "删除";
-    deleteBtn.onclick = function() { deleteListItem("WorkshopItems", index); };
+    deleteBtn.className = "list-button delete-thorough";
+    deleteBtn.textContent = "彻底删除";
+    deleteBtn.title = "删除创意工坊条目、关联的模组和地图，并删除工坊目录文件";
+    deleteBtn.onclick = function() { thoroughDeleteListItem("WorkshopItems", index); };
     buttonsDiv.appendChild(deleteBtn);
 
     headerDiv.appendChild(buttonsDiv);
@@ -380,6 +474,11 @@ function renderListEditor(containerId, items, type) {
       div.classList.add("orphan-item");
     }
 
+    const isPending = isPendingDeletion(type, item);
+    if (isPending) {
+      div.classList.add("pending-delete");
+    }
+
     div.addEventListener("dragstart", function(e) {
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", JSON.stringify({ type: type, index: index }));
@@ -431,6 +530,10 @@ function renderListEditor(containerId, items, type) {
     input.value = item;
     input.dataset.index = index;
     input.dataset.type = type;
+    input.disabled = isPending;
+    if (isPending) {
+      input.title = "撤销删除后才能编辑";
+    }
     div.appendChild(input);
 
     const upBtn = document.createElement("button");
@@ -460,10 +563,26 @@ function renderListEditor(containerId, items, type) {
     }
 
     const deleteBtn = document.createElement("button");
-    deleteBtn.className = "list-button delete";
-    deleteBtn.textContent = "删除";
-    deleteBtn.onclick = () => deleteListItem(type, index);
+    if (isPending) {
+      deleteBtn.className = "list-button undo-pending";
+      deleteBtn.textContent = "撤销";
+      deleteBtn.title = "撤销删除";
+    } else {
+      deleteBtn.className = "list-button delete";
+      deleteBtn.textContent = "删除";
+      deleteBtn.title = "标记删除，保存配置后生效";
+    }
+    deleteBtn.onclick = () => togglePendingDelete(type, item);
     div.appendChild(deleteBtn);
+
+    if (type === "Mods") {
+      const thoroughDeleteBtn = document.createElement("button");
+      thoroughDeleteBtn.className = "list-button delete-thorough";
+      thoroughDeleteBtn.textContent = "彻底删除";
+      thoroughDeleteBtn.title = "同时删除关联的创意工坊条目、模组、地图和工坊目录文件";
+      thoroughDeleteBtn.onclick = () => thoroughDeleteListItem(type, index);
+      div.appendChild(thoroughDeleteBtn);
+    }
 
     container.appendChild(div);
   });
@@ -519,34 +638,131 @@ function moveItemToEnd(type, index) {
   rerenderByType(type);
 }
 
-function deleteListItem(type, index) {
+function cleanModId(value) {
+  return value.startsWith("\\") ? value.substring(1) : value;
+}
+
+function removeModsByCleanId(cleanId) {
+  for (let i = state.modsItems.length - 1; i >= 0; i -= 1) {
+    if (cleanModId(state.modsItems[i]) === cleanId) {
+      state.modsItems.splice(i, 1);
+    }
+  }
+}
+
+function removeMaps(mapNames) {
+  for (const mapName of mapNames || []) {
+    for (let i = state.mapItems.length - 1; i >= 0; i -= 1) {
+      if (state.mapItems[i] === mapName) {
+        state.mapItems.splice(i, 1);
+      }
+    }
+  }
+}
+
+function removeWorkshopItem(itemId) {
+  const workshopItem = state.workshopItemsData.find((wi) => wi.id === itemId);
+  if (workshopItem) {
+    for (const subMod of workshopItem.subMods) {
+      removeModsByCleanId(subMod.id);
+    }
+    removeMaps(workshopItem.maps);
+  }
+
+  const index = state.workshopItemsItems.indexOf(itemId);
+  if (index !== -1) {
+    state.workshopItemsItems.splice(index, 1);
+  }
+}
+
+function findWorkshopItemIdsForMod(cleanId) {
+  return state.workshopItemsItems.filter((itemId) => {
+    const workshopItem = state.workshopItemsData.find((wi) => wi.id === itemId);
+    return workshopItem?.subMods.some((subMod) => cleanModId(subMod.id) === cleanId);
+  });
+}
+
+async function thoroughDeleteListItem(type, index) {
   const arr = getItemsArray(type);
-  if (!arr) return;
+  if (!arr || index < 0 || index >= arr.length) return;
+
+  if (type === "Mods") {
+    const selectedMod = arr[index];
+    const cleanId = cleanModId(selectedMod);
+    const linkedWorkshopItems = findWorkshopItemIdsForMod(cleanId);
+    const linkedDescription = linkedWorkshopItems.length > 0
+      ? `将同时删除关联的创意工坊条目（${linkedWorkshopItems.join("、")}）、其模组和地图，并永久删除创意工坊目录中的所有文件。`
+      : "未找到关联的创意工坊条目，只会从 Mods 中删除此条目。";
+
+    const confirmed = await confirmAction({
+      title: "彻底删除模组",
+      message: `确定要彻底删除模组“${selectedMod}”吗？\n${linkedDescription}`,
+      confirmText: "彻底删除",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    if (linkedWorkshopItems.length > 0) {
+      try {
+        for (const itemId of linkedWorkshopItems) {
+          await deleteWorkshopItemFiles(itemId);
+        }
+      } catch (error) {
+        showToast("删除创意工坊文件失败，配置未修改: " + error.message, "error");
+        return;
+      }
+
+      for (const itemId of linkedWorkshopItems) {
+        removeWorkshopItem(itemId);
+      }
+    } else {
+      removeModsByCleanId(cleanId);
+    }
+
+    prunePendingDeletions();
+    markConfigDirty();
+    renderWorkshopItems();
+    renderMods();
+    renderMap();
+    showToast(
+      linkedWorkshopItems.length > 0
+        ? "已彻底删除模组、关联创意工坊条目及工坊文件"
+        : "已彻底删除模组条目",
+      "success",
+    );
+    return;
+  }
 
   if (type === "WorkshopItems") {
     const itemId = arr[index];
     const workshopItem = state.workshopItemsData.find((wi) => wi.id === itemId);
-    if (workshopItem) {
-      for (const subMod of workshopItem.subMods) {
-        const mi = state.modsItems.findIndex((m) => {
-          const clean = m.startsWith("\\") ? m.substring(1) : m;
-          return clean === subMod.id;
-        });
-        if (mi !== -1) state.modsItems.splice(mi, 1);
-      }
-      for (const mapName of workshopItem.maps) {
-        const mi = state.mapItems.indexOf(mapName);
-        if (mi !== -1) state.mapItems.splice(mi, 1);
-      }
-    }
-  }
+    const modNames = workshopItem?.subMods.map((subMod) => subMod.name).filter(Boolean) || [];
+    const modDescription = modNames.length > 0
+      ? `\n将同时删除关联模组：${modNames.join("、")}，这些模组使用的地图，以及创意工坊目录中的所有文件。`
+      : "\n将同时删除该创意工坊条目关联的模组、地图，以及创意工坊目录中的所有文件。";
 
-  arr.splice(index, 1);
-  markConfigDirty();
-  rerenderByType(type);
-  if (type === "WorkshopItems") {
+    const confirmed = await confirmAction({
+      title: "彻底删除创意工坊项目",
+      message: `确定要彻底删除创意工坊项目“${itemId}”吗？${modDescription}`,
+      confirmText: "彻底删除",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await deleteWorkshopItemFiles(itemId);
+    } catch (error) {
+      showToast("删除创意工坊文件失败，配置未修改: " + error.message, "error");
+      return;
+    }
+
+    removeWorkshopItem(itemId);
+    prunePendingDeletions();
+    markConfigDirty();
+    renderWorkshopItems();
     renderMods();
     renderMap();
+    showToast("已彻底删除创意工坊条目、关联的模组和地图及工坊文件", "success");
   }
 }
 
@@ -612,6 +828,11 @@ export function confirmAddItem() {
   } else if (currentAddType === "Map") {
     state.mapItems.push(inputValue);
     renderMap();
+  }
+
+  const pending = getPendingDeletionSet(currentAddType);
+  if (pending) {
+    pending.delete(inputValue);
   }
 
   markConfigDirty();

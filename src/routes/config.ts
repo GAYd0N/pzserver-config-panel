@@ -3,6 +3,7 @@ import { readConfig, saveConfig } from "../config/service.js";
 import { AppError, toErrorResponse } from "../errors/app-error.js";
 import { stat } from "node:fs/promises";
 import { parseWorkshopItems } from "../config/workshop-parser.js";
+import { removeWorkshopItemDirectory } from "../config/workshop-files.js";
 import { relative, resolve } from "node:path";
 import type { WorkshopItem } from "../types/config.js";
 import {
@@ -176,6 +177,26 @@ export function createConfigRouter(configPath?: string): express.Router {
       }
 
       res.sendFile(candidateAbs);
+    } catch (error) {
+      sendRouteError(error, res);
+    }
+  });
+
+  router.delete("/workshop-items/:itemId", async (req, res) => {
+    try {
+      const serversConfig = await loadServersConfig({ cliConfigPath: configPath });
+
+      if (!serversConfig.global.workshopPath) {
+        throw new AppError("BAD_REQUEST", "Workshop path is not configured");
+      }
+
+      const itemId = typeof req.params.itemId === "string" ? req.params.itemId : "";
+      const result = await removeWorkshopItemDirectory(
+        serversConfig.global.workshopPath,
+        itemId,
+      );
+
+      res.json({ ok: true, removed: result.removed });
     } catch (error) {
       sendRouteError(error, res);
     }

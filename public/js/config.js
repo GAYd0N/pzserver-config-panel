@@ -1,7 +1,7 @@
 import { state, markConfigDirty } from "./state.js";
 import { showToast } from "./utils.js";
 import { fetchConfig, saveConfig as saveConfigAPI } from "./api.js";
-import { renderMods, renderWorkshopItems, renderMap } from "./mods.js";
+import { renderMods, renderWorkshopItems, renderMap, clearPendingDeletions, commitPendingDeletions, filterPendingDeletions } from "./mods.js";
 
 const ITEM_GROUPS_LABELS = {
   basic: "服务器基本设置",
@@ -40,6 +40,7 @@ const ITEM_GROUPS = {
 export function renderConfig() {
   if (!state.configData) return;
 
+  clearPendingDeletions();
   state.normalItems = [];
   state.modsItems = [];
   state.workshopItemsItems = [];
@@ -194,11 +195,22 @@ export function gatherConfigItems() {
     items.push({ key: input.dataset.key, value: input.checked ? "true" : "false" });
   });
 
-  items.push({ key: "Mods", value: state.modsItems.filter((s) => s).join(";") });
-  items.push({ key: "WorkshopItems", value: state.workshopItemsItems.filter((s) => s).join(";") });
-  items.push({ key: "Map", value: state.mapItems.filter((s) => s).join(";") });
+  const modsItems = filterPendingDeletions("Mods", state.modsItems);
+  const workshopItems = filterPendingDeletions("WorkshopItems", state.workshopItemsItems);
+  const mapItems = filterPendingDeletions("Map", state.mapItems);
+
+  items.push({ key: "Mods", value: modsItems.filter((s) => s).join(";") });
+  items.push({ key: "WorkshopItems", value: workshopItems.filter((s) => s).join(";") });
+  items.push({ key: "Map", value: mapItems.filter((s) => s).join(";") });
 
   return items;
+}
+
+function commitPendingDeletionsAndRender() {
+  if (!commitPendingDeletions()) return;
+  renderMods();
+  renderWorkshopItems();
+  renderMap();
 }
 
 export async function saveConfigHandler() {
@@ -211,6 +223,7 @@ export async function saveConfigHandler() {
   try {
     const items = gatherConfigItems();
     await saveConfigAPI(state.currentServerId, items);
+    commitPendingDeletionsAndRender();
     if (state.configRevision === revision) {
       state.isDirty = false;
       showToast("保存成功", "success");
@@ -250,6 +263,7 @@ async function autoSave() {
   try {
     const items = gatherConfigItems();
     await saveConfigAPI(state.currentServerId, items);
+    commitPendingDeletionsAndRender();
     succeeded = true;
     if (state.configRevision === revision) {
       state.isDirty = false;

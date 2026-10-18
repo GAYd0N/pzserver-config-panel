@@ -1329,6 +1329,16 @@ main {
 
 .list-item-input:focus { outline: none; }
 
+.list-item.pending-delete {
+  border-color: var(--color-accent-yellow);
+  box-shadow: inset 3px 0 0 var(--color-accent-yellow);
+}
+
+.list-item.pending-delete .list-item-input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .list-button {
   background-color: transparent;
   border: 1px solid var(--color-border-primary);
@@ -1369,6 +1379,30 @@ main {
   background-color: var(--color-accent-red);
   color: white;
   border-color: var(--color-accent-red);
+}
+
+.list-button.delete-thorough {
+  color: var(--color-accent-red);
+  border-color: var(--color-accent-red);
+}
+
+.list-button.delete-thorough:hover {
+  background-color: var(--color-accent-red);
+  color: white;
+  border-color: var(--color-accent-red);
+}
+
+.list-button.undo-pending {
+  background-color: var(--color-accent-yellow);
+  color: #1a1a1a;
+  border-color: var(--color-accent-yellow);
+}
+
+.list-button.undo-pending:hover {
+  background-color: var(--color-accent-yellow);
+  color: #1a1a1a;
+  border-color: var(--color-accent-yellow);
+  filter: brightness(0.92);
 }
 
 /* ===== Toggle Switch ===== */
