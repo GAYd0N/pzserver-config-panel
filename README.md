@@ -53,9 +53,7 @@ cp servers-config.json.example servers-config.json
       "iniPath": "/home/pz/Zomboid/Server/main.ini",
       "startArgs": ["-servername", "main"],
       "stopCommands": ["save", "quit"],
-      "scheduledCommands": [
-        { "id": "daily-restart", "name": "每日重启", "action": "restart", "cron": "0 4 * * *", "enabled": false }
-      ]
+      "scheduledCommands": []
     }
   ]
 }
