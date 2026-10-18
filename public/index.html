@@ -219,7 +219,13 @@
       <section class="config-section backup-section">
         <div class="section-header">
           <h2>备份列表</h2>
-          <button id="createBackupBtn" class="add-button" type="button">立即备份</button>
+          <div class="backup-header-actions">
+            <div class="backup-status-row" role="status" aria-live="polite">
+              <span id="backupStatusDot" class="backup-status-dot"></span>
+              <span id="backupStatusText">就绪</span>
+            </div>
+            <button id="createBackupBtn" class="add-button" type="button" title="立即创建一次备份">立即备份</button>
+          </div>
         </div>
         <div id="backupList" class="backup-list"></div>
       </section>

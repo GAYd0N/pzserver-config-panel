@@ -1212,6 +1212,40 @@ main {
   white-space: nowrap;
 }
 
+.backup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.backup-section .section-header {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.backup-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.backup-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-accent-green);
+  flex-shrink: 0;
+}
+
+.backup-status-dot.running {
+  background-color: var(--color-accent-yellow);
+  animation: pulse 1s infinite;
+}
+
 .backup-list {
   display: flex;
   flex-direction: column;
@@ -1604,7 +1638,12 @@ main {
   transition: background-color 0.2s;
 }
 
-.add-button:hover { background-color: var(--color-accent-blue-hover); }
+.add-button:hover:not(:disabled) { background-color: var(--color-accent-blue-hover); }
+
+.add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* ===== Quick Add ===== */
 .quick-add-section { margin-bottom: 2rem; }

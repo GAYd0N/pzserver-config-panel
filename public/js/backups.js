@@ -3,10 +3,16 @@ import { showToast } from "./utils.js";
 import {
   createServerBackupAPI,
   deleteServerBackupAPI,
+  fetchServerBackupStatus,
   fetchServerBackups,
   updateServer,
 } from "./api.js";
 import { confirmAction } from "./confirm-dialog.js";
+
+const STATUS_WATCH_INTERVAL_MS = 2000;
+
+let statusWatchTimer = null;
+let lastStatusRunning = false;
 
 function getSavePathInput() {
   return document.getElementById("savePathInput");
@@ -106,16 +112,83 @@ export function renderBackups(backups) {
   }
 }
 
-export async function loadBackups() {
-  const container = getBackupList();
-  if (!container) return;
+export function renderBackupStatus(status) {
+  const running = Boolean(status?.running);
+  const dot = document.getElementById("backupStatusDot");
+  const text = document.getElementById("backupStatusText");
+  const button = document.getElementById("createBackupBtn");
 
-  if (!state.currentServerId) {
-    renderBackups([]);
+  if (dot) {
+    dot.classList.toggle("running", running);
+  }
+
+  if (text) {
+    if (running) {
+      const startedAt = status?.startedAt ? new Date(status.startedAt) : null;
+      const startedText =
+        startedAt && !Number.isNaN(startedAt.getTime())
+          ? `（开始于 ${startedAt.toLocaleTimeString()}）`
+          : "";
+      text.textContent = `正在创建备份…${startedText}`;
+    } else {
+      text.textContent = "就绪";
+    }
+  }
+
+  if (button) {
+    button.disabled = running;
+    button.textContent = running ? "备份中…" : "立即备份";
+    button.title = running ? "已有备份正在进行，请等待完成" : "立即创建一次备份";
+  }
+}
+
+function applyBackupStatus(status) {
+  const wasRunning = lastStatusRunning;
+  lastStatusRunning = Boolean(status?.running);
+  renderBackupStatus(status);
+
+  if (!status?.running && wasRunning) {
+    void refreshBackupList();
+  }
+}
+
+export function startBackupStatusWatching() {
+  if (statusWatchTimer) return;
+
+  statusWatchTimer = setInterval(() => {
+    void refreshBackupStatus();
+  }, STATUS_WATCH_INTERVAL_MS);
+}
+
+export function stopBackupStatusWatching() {
+  if (!statusWatchTimer) return;
+  clearInterval(statusWatchTimer);
+  statusWatchTimer = null;
+}
+
+export async function refreshBackupStatus() {
+  const serverId = state.currentServerId;
+  if (!serverId) {
+    applyBackupStatus({ running: false, startedAt: null });
     return;
   }
 
-  if (!getCurrentSavePath()) {
+  try {
+    const status = await fetchServerBackupStatus(serverId);
+    if (state.currentServerId !== serverId) return;
+    applyBackupStatus(status);
+  } catch {
+    if (state.currentServerId === serverId) {
+      applyBackupStatus({ running: false, startedAt: null });
+    }
+  }
+}
+
+async function refreshBackupList() {
+  const container = getBackupList();
+  if (!container) return;
+
+  if (!state.currentServerId || !getCurrentSavePath()) {
     renderBackups([]);
     return;
   }
@@ -128,6 +201,17 @@ export async function loadBackups() {
     renderEmptyState(container, "加载备份列表失败");
     showToast("加载备份列表失败: " + error.message, "error");
   }
+}
+
+export async function loadBackups() {
+  await refreshBackupList();
+
+  if (!state.currentServerId || !getCurrentSavePath()) {
+    applyBackupStatus({ running: false, startedAt: null });
+    return;
+  }
+
+  await refreshBackupStatus();
 }
 
 export async function saveSavePath() {
@@ -163,6 +247,12 @@ export async function createBackup() {
     return;
   }
 
+  if (lastStatusRunning) {
+    showToast("已有备份正在进行，请等待完成", "info");
+    return;
+  }
+
+  applyBackupStatus({ running: true, startedAt: new Date().toISOString() });
   const button = document.getElementById("createBackupBtn");
   if (button) button.disabled = true;
   showToast("正在创建备份...", "info");
@@ -170,11 +260,10 @@ export async function createBackup() {
   try {
     const backup = await createServerBackupAPI(state.currentServerId);
     showToast(`备份已创建: ${backup.name}`, "success");
-    await loadBackups();
   } catch (error) {
     showToast("创建备份失败: " + error.message, "error");
   } finally {
-    if (button) button.disabled = false;
+    await refreshBackupStatus();
   }
 }
 
@@ -192,7 +281,7 @@ export async function deleteBackup(fileName) {
   try {
     await deleteServerBackupAPI(state.currentServerId, fileName);
     showToast("备份已删除", "success");
-    await loadBackups();
+    await refreshBackupList();
   } catch (error) {
     showToast("删除备份失败: " + error.message, "error");
   }

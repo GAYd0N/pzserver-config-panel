@@ -23,9 +23,24 @@ export type ServerBackupInfo = {
   createdAt: string;
 };
 
+export type ServerBackupStatus = {
+  running: boolean;
+  startedAt: string | null;
+};
+
 export type CreateServerBackupOptions = {
   now?: () => Date;
 };
+
+const activeBackups = new Map<string, string>();
+
+export function getServerBackupStatus(serverId: string): ServerBackupStatus {
+  const startedAt = activeBackups.get(serverId);
+  return {
+    running: startedAt !== undefined,
+    startedAt: startedAt ?? null,
+  };
+}
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
@@ -136,6 +151,26 @@ function toBackupInfo(name: string, fileStat: {
 }
 
 export async function createServerBackup(
+  server: ServerInstance,
+  options: CreateServerBackupOptions = {},
+): Promise<ServerBackupInfo> {
+  if (activeBackups.has(server.id)) {
+    throw new AppError(
+      "BACKUP_IN_PROGRESS",
+      "已有备份正在进行，请等待当前备份完成",
+    );
+  }
+
+  activeBackups.set(server.id, new Date().toISOString());
+
+  try {
+    return await runServerBackup(server, options);
+  } finally {
+    activeBackups.delete(server.id);
+  }
+}
+
+async function runServerBackup(
   server: ServerInstance,
   options: CreateServerBackupOptions = {},
 ): Promise<ServerBackupInfo> {

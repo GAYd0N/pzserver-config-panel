@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import {
   createServerBackup,
   deleteServerBackup,
+  getServerBackupStatus,
   listServerBackups,
 } from "../src/backup/server-backup.js";
 import type { ServerInstance } from "../src/types/server.js";
@@ -90,6 +91,33 @@ describe("server backup archives", () => {
 
     await deleteServerBackup(createServer(), backup.name);
     expect(await listServerBackups(createServer())).toEqual([]);
+  });
+
+  it("reports running status and rejects a second backup while one is in progress", async () => {
+    const server = createServer();
+    expect(getServerBackupStatus(server.id)).toEqual({
+      running: false,
+      startedAt: null,
+    });
+
+    const first = createServerBackup(server, {
+      now: () => new Date(2026, 9, 18, 16, 40, 5),
+    });
+
+    expect(getServerBackupStatus(server.id).running).toBe(true);
+    expect(getServerBackupStatus(server.id).startedAt).not.toBeNull();
+
+    await expect(
+      createServerBackup(server, { now: () => new Date(2026, 9, 18, 16, 40, 6) }),
+    ).rejects.toMatchObject({ code: "BACKUP_IN_PROGRESS", status: 409 });
+
+    await first;
+
+    expect(getServerBackupStatus(server.id)).toEqual({
+      running: false,
+      startedAt: null,
+    });
+    expect(await listServerBackups(server)).toHaveLength(1);
   });
 
   it("rejects unsafe backup file names", async () => {

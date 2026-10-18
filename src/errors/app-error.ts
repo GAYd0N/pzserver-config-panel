@@ -9,7 +9,8 @@ export type ErrorCode =
   | "ANOTHER_SERVER_RUNNING"
   | "TERMINAL_NOT_WRITABLE"
   | "PROCESS_SPAWN_FAILED"
-  | "STOP_TIMEOUT";
+  | "STOP_TIMEOUT"
+  | "BACKUP_IN_PROGRESS";
 
 export type HttpErrorStatus = 400 | 404 | 409 | 500;
 
@@ -25,6 +26,7 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, HttpErrorStatus> = {
   TERMINAL_NOT_WRITABLE: 409,
   PROCESS_SPAWN_FAILED: 500,
   STOP_TIMEOUT: 409,
+  BACKUP_IN_PROGRESS: 409,
 };
 
 export type ErrorResponse = {

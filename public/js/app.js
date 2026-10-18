@@ -6,7 +6,14 @@ import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeleti
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
 import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig, startUptimeTimer } from "./server-manager.js";
 import { addScheduledCommand, closeScheduledCommandDialog, confirmScheduledCommand } from "./scheduled-commands.js";
-import { createBackup, loadBackups, saveSavePath, updateBackupConfigUI } from "./backups.js";
+import {
+  createBackup,
+  loadBackups,
+  saveSavePath,
+  startBackupStatusWatching,
+  stopBackupStatusWatching,
+  updateBackupConfigUI,
+} from "./backups.js";
 
 let hasAutoConnectedTerminal = false;
 
@@ -23,6 +30,8 @@ function tryAutoConnectTerminal() {
 }
 
 function switchTab(tabName) {
+  stopBackupStatusWatching();
+
   document.querySelectorAll(".tab-button").forEach((button) => {
     button.classList.remove("active");
   });
@@ -43,6 +52,7 @@ function switchTab(tabName) {
 
   if (tabName === "backup") {
     updateBackupConfigUI();
+    startBackupStatusWatching();
     loadBackups();
   }
 }

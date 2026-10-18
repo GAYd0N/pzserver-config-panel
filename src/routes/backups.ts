@@ -4,6 +4,7 @@ import { loadServersConfig } from "../config/servers-config.js";
 import {
   createServerBackup,
   deleteServerBackup,
+  getServerBackupStatus,
   listServerBackups,
 } from "../backup/server-backup.js";
 import { AppError, toErrorResponse } from "../errors/app-error.js";
@@ -47,6 +48,17 @@ export function createBackupsRouter(cliConfigPath?: string): express.Router {
     }
   });
 
+  // GET /api/servers/:id/backups/status - 获取当前备份状态
+  router.get("/servers/:id/backups/status", async (req, res) => {
+    try {
+      const config = await loadServersConfig({ cliConfigPath });
+      const server = resolveServerById(config.servers, req.params.id);
+      res.json(getServerBackupStatus(server.id));
+    } catch (error) {
+      sendRouteError(error, res);
+    }
+  });
+
   // POST /api/servers/:id/backups - 创建一次备份
   router.post("/servers/:id/backups", async (req, res) => {
     try {
@@ -60,8 +72,7 @@ export function createBackupsRouter(cliConfigPath?: string): express.Router {
   });
 
   // DELETE /api/servers/:id/backups/:fileName - 删除指定备份
-  router.delete("/servers/:id/backups/:fileName", async (req, res) => {
-    try {
+  router.delete("/servers/:id/backups/:fileName", async (req, res) => {    try {
       const config = await loadServersConfig({ cliConfigPath });
       const server = resolveServerById(config.servers, req.params.id);
       await deleteServerBackup(server, req.params.fileName);

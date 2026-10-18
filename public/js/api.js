@@ -154,6 +154,17 @@ export async function fetchServerBackups(serverId) {
   return data;
 }
 
+export async function fetchServerBackupStatus(serverId) {
+  const response = await fetch(
+    `/api/servers/${encodeURIComponent(serverId)}/backups/status`,
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error?.message || "加载备份状态失败");
+  }
+  return data;
+}
+
 export async function createServerBackupAPI(serverId) {
   const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/backups`, {
     method: "POST",
