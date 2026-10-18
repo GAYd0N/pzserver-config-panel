@@ -1285,6 +1285,73 @@ main {
 
 .add-button:hover { background-color: var(--color-accent-blue-hover); }
 
+/* ===== Quick Add ===== */
+.quick-add-section { margin-bottom: 2rem; }
+
+.quick-add-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.quick-add-input {
+  flex: 0 0 50%;
+  width: 50%;
+  min-width: 0;
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 4px;
+  padding: 0.625rem 0.875rem;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  font-family: var(--font-family-mono);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 7rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.quick-add-input:focus {
+  outline: none;
+  border-color: var(--color-accent-green);
+  box-shadow: 0 0 0 3px var(--color-accent-green-glow);
+}
+
+.quick-add-input::placeholder { color: var(--color-text-muted); }
+
+.quick-add-button {
+  align-self: flex-start;
+  background-color: var(--color-accent-blue);
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.quick-add-button:hover { background-color: var(--color-accent-blue-hover); }
+
+.quick-add-hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  padding-top: 0.25rem;
+}
+
+.quick-add-hint p { margin: 0; }
+
+.quick-add-hint p.quick-add-example {
+  margin-top: 0.375rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+}
+
 .list-editor {
   display: flex;
   flex-direction: column;
@@ -2366,6 +2433,9 @@ body.dragging-active .list-item { cursor: grabbing; }
 @media (max-width: 480px) {
   .config-section { padding: 1rem; }
   .items-list { gap: 1rem; }
+  .quick-add-row { flex-direction: column; }
+  .quick-add-button { width: 100%; }
+  .quick-add-input { flex: 1 1 auto; width: 100%; }
   .header-center { display: none; }
   .dialog-content { width: 95%; max-width: none; }
   .dialog-content.dialog-large { width: 95%; max-width: none; }

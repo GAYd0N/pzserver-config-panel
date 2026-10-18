@@ -9,6 +9,8 @@ import {
   renderMap,
   addListItem,
   confirmAddItem,
+  parseWorkshopInfoText,
+  quickAddFromText,
 } from "../../public/js/mods.js";
 
 describe("mods.js", () => {
@@ -36,6 +38,7 @@ describe("mods.js", () => {
       <div id="workshopItemsList"></div>
       <div id="mapList"></div>
       <div id="toastContainer"></div>
+      <textarea id="quickAddInput"></textarea>
       <div id="addItemDialog" class="dialog-overlay">
         <h3 id="dialogTitle"></h3>
         <label id="dialogLabel"></label>
@@ -332,6 +335,94 @@ describe("mods.js", () => {
     expect(state.modsItems).toEqual(["modA", "modB", "modC"]);
     expect(state.workshopItemsItems).toEqual(["ws1", "ws2"]);
     expect(state.mapItems).toEqual(["MapA", "MapB"]);
+    expect(state.isDirty).toBe(false);
+  });
+
+  it("parses a workshop id and a mod id from pasted workshop info", () => {
+    const parsed = parseWorkshopInfoText("Workshop ID: 3805000017\nMod ID: HitSound");
+
+    expect(parsed.workshopIds).toEqual(["3805000017"]);
+    expect(parsed.modIds).toEqual(["HitSound"]);
+    expect(parsed.mapFolders).toEqual([]);
+  });
+
+  it("parses the map folder and preserves every character of each value", () => {
+    const parsed = parseWorkshopInfoText([
+      "Workshop ID: 3527172639",
+      "Mod ID: Ranger'sHomesteadB42",
+      "Map Folder: ranger's_homestead",
+    ].join("\r\n"));
+
+    expect(parsed.workshopIds).toEqual(["3527172639"]);
+    expect(parsed.modIds).toEqual(["Ranger'sHomesteadB42"]);
+    expect(parsed.mapFolders).toEqual(["ranger's_homestead"]);
+  });
+
+  it("keeps spaces and symbols inside parsed values", () => {
+    const parsed = parseWorkshopInfoText([
+      "Mod ID: Mod's_Name (B42)",
+      "Map Folder: ranger's homestead & extras",
+    ].join("\n"));
+
+    expect(parsed.modIds).toEqual(["Mod's_Name (B42)"]);
+    expect(parsed.mapFolders).toEqual(["ranger's homestead & extras"]);
+  });
+
+  it("parses multiple entries with full-width colons and drops duplicates", () => {
+    const parsed = parseWorkshopInfoText([
+      "Workshop ID：3805000017",
+      "Mod ID：HitSound",
+      "Workshop ID: 3805000017",
+      "Mod ID: \\HitSound",
+      "Mod ID: OtherMod",
+    ].join("\n"));
+
+    expect(parsed.workshopIds).toEqual(["3805000017"]);
+    expect(parsed.modIds).toEqual(["HitSound", "OtherMod"]);
+  });
+
+  it("returns empty lists when the input has no workshop or mod id", () => {
+    const parsed = parseWorkshopInfoText("随便一段没有任何标识的文字");
+
+    expect(parsed.workshopIds).toEqual([]);
+    expect(parsed.modIds).toEqual([]);
+  });
+
+  it("adds parsed workshop and mod ids to the config lists", () => {
+    document.getElementById("quickAddInput").value = "Workshop ID: 3805000017\nMod ID: HitSound";
+
+    quickAddFromText();
+
+    expect(state.workshopItemsItems).toEqual(["3805000017"]);
+    expect(state.modsItems).toEqual(["HitSound"]);
+    expect(state.isDirty).toBe(true);
+    expect(document.getElementById("quickAddInput").value).toBe("");
+  });
+
+  it("adds parsed map folders to the Map config list", () => {
+    document.getElementById("quickAddInput").value = [
+      "Workshop ID: 3527172639",
+      "Mod ID: Ranger'sHomesteadB42",
+      "Map Folder: ranger's_homestead",
+    ].join("\n");
+
+    quickAddFromText();
+
+    expect(state.workshopItemsItems).toEqual(["3527172639"]);
+    expect(state.modsItems).toEqual(["Ranger'sHomesteadB42"]);
+    expect(state.mapItems).toEqual(["ranger's_homestead"]);
+    expect(state.isDirty).toBe(true);
+  });
+
+  it("skips entries that already exist instead of duplicating them", () => {
+    state.workshopItemsItems = ["3805000017"];
+    state.modsItems = ["\\HitSound"];
+    document.getElementById("quickAddInput").value = "Workshop ID: 3805000017\nMod ID: HitSound";
+
+    quickAddFromText();
+
+    expect(state.workshopItemsItems).toEqual(["3805000017"]);
+    expect(state.modsItems).toEqual(["\\HitSound"]);
     expect(state.isDirty).toBe(false);
   });
 });

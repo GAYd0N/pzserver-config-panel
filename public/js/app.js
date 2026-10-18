@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { showToast, getUrlParam } from "./utils.js";
 import { initTheme } from "./theme.js";
 import { loadConfig, renderConfig, saveConfigHandler, toggleCollapse } from "./config.js";
-import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeletions } from "./mods.js";
+import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeletions, quickAddFromText } from "./mods.js";
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
 import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig } from "./server-manager.js";
 
@@ -60,6 +60,21 @@ async function init() {
   const autoSortBtn = document.getElementById("autoSortBtn");
   if (autoSortBtn) {
     autoSortBtn.addEventListener("click", autoSortMods);
+  }
+
+  const quickAddBtn = document.getElementById("quickAddBtn");
+  if (quickAddBtn) {
+    quickAddBtn.addEventListener("click", quickAddFromText);
+  }
+
+  const quickAddInput = document.getElementById("quickAddInput");
+  if (quickAddInput) {
+    quickAddInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        quickAddFromText();
+      }
+    });
   }
 
   document.getElementById("startServerBtn").addEventListener("click", startServer);

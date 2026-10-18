@@ -775,6 +775,107 @@ function dragReorderItems(type, fromIndex, toIndex) {
   rerenderByType(type);
 }
 
+// ===== Quick Add =====
+
+const FIELD_LABELS = "workshop\\s*id|mod\\s*id|map\\s*folder";
+const FIELD_PATTERN = new RegExp(
+  `(${FIELD_LABELS})\\s*[:：=]\\s*([^\\r\\n]*?)(?=\\s*(?:${FIELD_LABELS})\\s*[:：=]|\\r?\\n|$)`,
+  "gi",
+);
+
+function pushUnique(list, value) {
+  if (value && !list.includes(value)) {
+    list.push(value);
+  }
+}
+
+export function parseWorkshopInfoText(text) {
+  const result = { workshopIds: [], modIds: [], mapFolders: [] };
+  if (typeof text !== "string" || text.trim() === "") {
+    return result;
+  }
+
+  for (const match of text.matchAll(FIELD_PATTERN)) {
+    const label = match[1].toLowerCase().replace(/\s+/g, " ");
+    const value = match[2].trim();
+    if (!value) continue;
+
+    if (label === "workshop id") {
+      pushUnique(result.workshopIds, value);
+    } else if (label === "mod id") {
+      pushUnique(result.modIds, value.replace(/^\\+/, ""));
+    } else if (label === "map folder") {
+      pushUnique(result.mapFolders, value);
+    }
+  }
+
+  return result;
+}
+
+export function quickAddFromText() {
+  const input = document.getElementById("quickAddInput");
+  if (!input) return;
+
+  const { workshopIds, modIds, mapFolders } = parseWorkshopInfoText(input.value);
+  if (workshopIds.length === 0 && modIds.length === 0 && mapFolders.length === 0) {
+    showToast("未识别到 Workshop ID、Mod ID 或 Map Folder，请检查输入格式", "error");
+    return;
+  }
+
+  const added = [];
+  let skipped = 0;
+
+  const workshopPending = getPendingDeletionSet("WorkshopItems");
+  for (const itemId of workshopIds) {
+    if (state.workshopItemsItems.includes(itemId)) {
+      skipped += 1;
+    } else {
+      state.workshopItemsItems.push(itemId);
+      added.push(itemId);
+    }
+    workshopPending?.delete(itemId);
+  }
+
+  const modsPending = getPendingDeletionSet("Mods");
+  const existingModIds = new Set(state.modsItems.map(cleanModId));
+  for (const modId of modIds) {
+    if (existingModIds.has(modId)) {
+      skipped += 1;
+    } else {
+      state.modsItems.push(modId);
+      existingModIds.add(modId);
+      added.push(modId);
+    }
+    modsPending?.delete(modId);
+    modsPending?.delete("\\" + modId);
+  }
+
+  const mapPending = getPendingDeletionSet("Map");
+  for (const mapFolder of mapFolders) {
+    if (state.mapItems.includes(mapFolder)) {
+      skipped += 1;
+    } else {
+      state.mapItems.push(mapFolder);
+      added.push(mapFolder);
+    }
+    mapPending?.delete(mapFolder);
+  }
+
+  if (added.length === 0) {
+    showToast("输入内容已全部存在，未做修改", "info");
+    return;
+  }
+
+  markConfigDirty();
+  renderWorkshopItems();
+  renderMods();
+  renderMap();
+  input.value = "";
+
+  const skippedText = skipped > 0 ? `，已跳过 ${skipped} 项重复条目` : "";
+  showToast(`已添加：${added.join("、")}${skippedText}`, "success");
+}
+
 // ===== Add Item Dialog =====
 
 export function addListItem(type) {

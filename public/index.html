@@ -113,6 +113,26 @@
     </div>
 
     <div class="tab-content" id="mods-tab">
+      <section id="quickAddSection" class="config-section quick-add-section">
+        <div class="quick-add-row">
+          <button
+            id="quickAddBtn"
+            class="quick-add-button"
+            title="解析输入内容，把 Workshop ID 添加到 WorkshopItems，把 Mod ID 添加到 Mods"
+          >一键添加</button>
+          <textarea
+            id="quickAddInput"
+            class="quick-add-input"
+            rows="4"
+            spellcheck="false"
+            placeholder="在此粘贴工坊信息"
+          ></textarea>
+          <div class="quick-add-hint">
+            <p>粘贴工坊信息后可自动解析添加mod，可同时添加多个，例如：</p>
+            <p class="quick-add-example">Workshop ID: 3527172639<br />Mod ID: Ranger'sHomesteadB42<br />Map Folder: ranger's_homestead</p>
+          </div>
+        </div>
+      </section>
       <div class="mods-layout">
         <div class="mods-main-column">
           <section id="workshopItemsSection" class="config-section">
