@@ -27,6 +27,9 @@ pzserver-config-panel/
 |  |- runtime/
 |  |  |- manager.ts             # Single-active child-process lifecycle and terminal control
 |  |  \- terminal-buffer.ts     # Per-instance in-memory log ring buffer
+|  |- scheduler/
+|  |  |- cron.ts                # Five-field cron parsing and matching
+|  |  \- command-scheduler.ts   # Minute-based execution of scheduled instance commands
 |  |- types/                    # Shared config, instance, runtime, and terminal types
 |  |- errors/                   # AppError codes and HTTP response conversion
 |  |- middleware/               # Express error handling
@@ -109,6 +112,7 @@ npx tsc --noEmit
 - Workshop media requests must remain inside the configured Workshop root. Keep path checks compatible with POSIX paths, Windows backslashes, and drive letters.
 - Workshop directory deletion must validate the item id, resolve it inside the configured Workshop root, reject symlinks/non-directories, and remove only the item directory. File deletion happens before config mutation; on failure, leave config unchanged.
 - Process termination uses process groups on Linux/macOS and `taskkill` on Windows. Preserve cross-platform behavior when changing runtime code.
+- Scheduled commands live per instance in `servers-config.json` as `scheduledCommands` entries (`start`, `stop`, `force-stop`, `restart`). Cron uses five fields in the panel process's local time, matches once per minute, and only runs while the panel is running.
 
 ### API Boundaries
 

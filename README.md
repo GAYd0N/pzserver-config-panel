@@ -52,7 +52,10 @@ cp servers-config.json.example servers-config.json
       "name": "主服务器",
       "iniPath": "/home/pz/Zomboid/Server/main.ini",
       "startArgs": ["-servername", "main"],
-      "stopCommands": ["save", "quit"]
+      "stopCommands": ["save", "quit"],
+      "scheduledCommands": [
+        { "id": "daily-restart", "name": "每日重启", "action": "restart", "cron": "0 4 * * *", "enabled": false }
+      ]
     }
   ]
 }
@@ -63,6 +66,7 @@ cp servers-config.json.example servers-config.json
 - 所有路径都应使用绝对路径。
 - `startArgs` 中 `-servername` 后的名称必须与 INI 文件名一致；`main` 对应 `main.ini`。
 - 多个实例可继续添加到 `servers` 数组，但同一时间只能运行一个实例。
+- `scheduledCommands` 配置定时命令：`action` 支持 `start`、`stop`、`force-stop`、`restart`；`name` 为显示名称，`cron` 使用 5 字段格式（分 时 日 月 周，本地时间）并仅用于持久化。定时任务仅在面板运行期间触发，同一分钟内的同一任务只执行一次。也可以在面板的「全局设置 → 当前实例设置 → 定时命令」中通过弹窗添加或编辑，确认后自动保存。
 
 完成配置后，在项目目录启动面板：
 

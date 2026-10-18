@@ -1,7 +1,15 @@
 import { basename, isAbsolute, resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { AppError } from "../errors/app-error.js";
-import type { ServerInstance, ServersConfig, ServerGlobalConfig } from "../types/server.js";
+import type {
+  ScheduledAction,
+  ScheduledCommand,
+  ServerInstance,
+  ServersConfig,
+  ServerGlobalConfig,
+} from "../types/server.js";
+import { SCHEDULED_ACTIONS } from "../types/server.js";
+import { parseCronExpression } from "../scheduler/cron.js";
 
 type LegacyPathsConfigFile = {
   workshopPath?: unknown;
@@ -132,8 +140,7 @@ function normalizeStopCommands(value: unknown, index: number): string[] {
   return normalized;
 }
 
-function normalizeStartArgs(value: unknown, index: number, iniBaseName: string): string[] {
-  if (value === undefined) {
+function normalizeStartArgs(value: unknown, index: number, iniBaseName: string): string[] {  if (value === undefined) {
     return ["-servername", iniBaseName];
   }
 
@@ -155,6 +162,82 @@ function normalizeStartArgs(value: unknown, index: number, iniBaseName: string):
       return item.trim();
     })
     .filter((item) => item.length > 0);
+}
+
+function normalizeScheduledCommands(
+  value: unknown,
+  serverIndex: number,
+): ScheduledCommand[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new AppError(
+      "BAD_REQUEST",
+      `servers[${serverIndex}].scheduledCommands must be an array`,
+    );
+  }
+
+  const usedIds = new Set<string>();
+
+  return value.map((item, commandIndex) => {
+    const fieldPath = `servers[${serverIndex}].scheduledCommands[${commandIndex}]`;
+
+    if (!isObject(item)) {
+      throw new AppError("BAD_REQUEST", `${fieldPath} must be an object`);
+    }
+
+    const action = item.action;
+    if (
+      typeof action !== "string" ||
+      !SCHEDULED_ACTIONS.includes(action as ScheduledAction)
+    ) {
+      throw new AppError(
+        "BAD_REQUEST",
+        `${fieldPath}.action must be one of: ${SCHEDULED_ACTIONS.join(", ")}`,
+      );
+    }
+
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+
+    const cron = typeof item.cron === "string" ? item.cron.trim() : "";
+    if (!cron) {
+      throw new AppError("BAD_REQUEST", `${fieldPath}.cron is required`);
+    }
+
+    try {
+      parseCronExpression(cron);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new AppError(
+        "BAD_REQUEST",
+        `${fieldPath}.cron is invalid: ${message}`,
+      );
+    }
+
+    if (item.enabled !== undefined && typeof item.enabled !== "boolean") {
+      throw new AppError("BAD_REQUEST", `${fieldPath}.enabled must be a boolean`);
+    }
+
+    let id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!id) {
+      id = `scheduled-${commandIndex + 1}`;
+    }
+
+    if (usedIds.has(id)) {
+      throw new AppError("BAD_REQUEST", `${fieldPath}.id must be unique`);
+    }
+    usedIds.add(id);
+
+    return {
+      id,
+      name,
+      action: action as ScheduledAction,
+      cron,
+      enabled: typeof item.enabled === "boolean" ? item.enabled : true,
+    };
+  });
 }
 
 function normalizeServerInstance(
@@ -188,6 +271,7 @@ function normalizeServerInstance(
     iniPath: rawIniPath,
     startArgs: normalizeStartArgs(value.startArgs, index, iniBaseName),
     stopCommands: normalizeStopCommands(value.stopCommands, index),
+    scheduledCommands: normalizeScheduledCommands(value.scheduledCommands, index),
   };
 }
 
@@ -295,6 +379,7 @@ function createServerFromIniPath(
     iniPath,
     startArgs: ["-servername", baseName],
     stopCommands: [...DEFAULT_STOP_COMMANDS],
+    scheduledCommands: [],
   };
 }
 
@@ -385,6 +470,7 @@ function migrateLegacyServersConfig(legacy: LegacyServersConfig): ServersConfig 
         iniPath: rawIniPath,
         startArgs,
         stopCommands,
+        scheduledCommands: [],
       });
     }
   }

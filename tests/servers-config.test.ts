@@ -170,6 +170,83 @@ describe("servers-config", () => {
     expect(persisted.servers[0].startArgs).toEqual(["-servername", "main", "-debug"]);
   });
 
+  it("should persist scheduled commands and default missing ones to an empty list", async () => {
+    const config = {
+      global: {
+        workshopPath: "",
+        startScriptPath: "/start.sh",
+        stopGraceTimeoutMs: 45000,
+        forceKillTimeoutMs: 10000,
+      },
+      servers: [
+        {
+          id: "main",
+          name: "Main",
+          iniPath: "/srv/main.ini",
+          startArgs: ["-servername", "main"],
+          stopCommands: ["save", "quit"],
+          scheduledCommands: [
+            { id: "nightly", action: "restart", cron: "0 4 * * *", enabled: true },
+            { id: "save-only", action: "stop", cron: "*/30 * * * *", enabled: false },
+          ],
+        },
+        {
+          id: "other",
+          name: "Other",
+          iniPath: "/srv/other.ini",
+          startArgs: ["-servername", "other"],
+          stopCommands: ["save", "quit"],
+        },
+      ],
+    };
+
+    const saved = await saveServersConfig(config, { serversConfigPath });
+
+    expect(saved.servers[0].scheduledCommands).toEqual([
+      { id: "nightly", name: "", action: "restart", cron: "0 4 * * *", enabled: true },
+      { id: "save-only", name: "", action: "stop", cron: "*/30 * * * *", enabled: false },
+    ]);
+    expect(saved.servers[1].scheduledCommands).toEqual([]);
+
+    const persisted = JSON.parse(await readFile(serversConfigPath, "utf8")) as ServersConfig;
+    expect(persisted.servers[0].scheduledCommands).toHaveLength(2);
+  });
+
+  it("should reject invalid scheduled command actions and cron expressions", async () => {
+    const baseConfig = {
+      global: {
+        workshopPath: "",
+        startScriptPath: "/start.sh",
+        stopGraceTimeoutMs: 45000,
+        forceKillTimeoutMs: 10000,
+      },
+      servers: [
+        {
+          id: "main",
+          name: "Main",
+          iniPath: "/srv/main.ini",
+          startArgs: ["-servername", "main"],
+          stopCommands: ["save", "quit"],
+          scheduledCommands: [
+            { id: "bad-action", action: "reboot", cron: "0 4 * * *", enabled: true },
+          ],
+        },
+      ],
+    };
+
+    await expect(
+      saveServersConfig(baseConfig, { serversConfigPath }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
+
+    baseConfig.servers[0].scheduledCommands = [
+      { id: "bad-cron", action: "restart", cron: "0 25 * * *", enabled: true },
+    ];
+
+    await expect(
+      saveServersConfig(baseConfig, { serversConfigPath }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
+  });
+
   it("should support legacy /paths compatibility mapping", () => {
     const config: ServersConfig = {
       global: {

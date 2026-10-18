@@ -11,6 +11,7 @@ import {
 } from "./api.js";
 import { reconnectTerminal } from "./terminal.js";
 import { confirmAction } from "./confirm-dialog.js";
+import { renderScheduledCommands } from "./scheduled-commands.js";
 
 // ===== Load Data =====
 
@@ -47,6 +48,34 @@ export async function loadRuntimeStatus() {
 
 // ===== UI Updates =====
 
+export function formatUptime(startedAt, now = Date.now()) {
+  const start = startedAt instanceof Date ? startedAt.getTime() : new Date(startedAt).getTime();
+  if (!Number.isFinite(start)) return "--";
+
+  const totalSeconds = Math.max(0, Math.floor((now - start) / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const clock = [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+
+  return days > 0 ? `${days}天 ${clock}` : clock;
+}
+
+let uptimeTimer = null;
+
+export function startUptimeTimer() {
+  if (uptimeTimer) return;
+
+  uptimeTimer = setInterval(() => {
+    const uptimeEl = document.getElementById("serverUptime");
+    if (!uptimeEl || uptimeEl.dataset.startedAt === undefined) return;
+    uptimeEl.textContent = formatUptime(Number(uptimeEl.dataset.startedAt));
+  }, 1000);
+}
+
 export function updateHeaderInfo() {
   const headerName = document.getElementById("headerServerName");
   if (state.currentServer) {
@@ -63,6 +92,7 @@ export function updateInstanceInfo() {
   document.getElementById("instanceIniPath").textContent = state.currentServer.iniPath;
   document.getElementById("instanceStartArgs").textContent = state.currentServer.startArgs.join(" ");
   document.getElementById("instanceStopCommands").textContent = state.currentServer.stopCommands.join(", ");
+  renderScheduledCommands();
 }
 
 export function updateGlobalConfigUI() {
@@ -86,6 +116,7 @@ export function updateControlPanel() {
   const infoEl = document.getElementById("controlInfo");
   const pidEl = document.getElementById("serverPid");
   const startedAtEl = document.getElementById("serverStartedAt");
+  const uptimeEl = document.getElementById("serverUptime");
   const sendBtn = document.getElementById("sendCommandBtn");
 
   const status = runtime?.status || "unknown";
@@ -107,8 +138,18 @@ export function updateControlPanel() {
     infoEl.style.display = "flex";
     pidEl.textContent = runtime.pid || "--";
     startedAtEl.textContent = runtime.startedAt ? new Date(runtime.startedAt).toLocaleString() : "--";
+
+    const startedAtMs = runtime.startedAt ? new Date(runtime.startedAt).getTime() : NaN;
+    if (Number.isFinite(startedAtMs)) {
+      uptimeEl.dataset.startedAt = String(startedAtMs);
+      uptimeEl.textContent = formatUptime(startedAtMs);
+    } else {
+      delete uptimeEl.dataset.startedAt;
+      uptimeEl.textContent = "--";
+    }
   } else {
     infoEl.style.display = "none";
+    delete uptimeEl.dataset.startedAt;
   }
 }
 

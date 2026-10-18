@@ -10,6 +10,7 @@ import {
 import { errorHandler } from "./middleware/error-handler.js";
 import { ServerRuntimeManager } from "./runtime/manager.js";
 import { loadServersConfig } from "./config/servers-config.js";
+import { CommandScheduler } from "./scheduler/command-scheduler.js";
 import {
   formatListenUrl,
   isLoopbackHost,
@@ -59,6 +60,12 @@ app.use(errorHandler);
 
 (async () => {
   await loadServersConfig({ cliConfigPath: startupOptions.configPath || "" });
+
+  const commandScheduler = new CommandScheduler({
+    runtimeManager,
+    cliConfigPath: startupOptions.configPath || "",
+  });
+  commandScheduler.start();
 
   const listenUrl = formatListenUrl(startupOptions.host, startupOptions.port);
 

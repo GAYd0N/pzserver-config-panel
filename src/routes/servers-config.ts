@@ -119,6 +119,7 @@ export function createServersConfigRouter(cliConfigPath?: string): express.Route
         stopCommands: Array.isArray(req.body.stopCommands)
           ? req.body.stopCommands.filter((cmd: unknown): cmd is string => typeof cmd === "string")
           : ["save", "quit"],
+        scheduledCommands: [],
       };
 
       const newConfig: ServersConfig = {
@@ -166,6 +167,9 @@ export function createServersConfigRouter(cliConfigPath?: string): express.Route
         stopCommands: Array.isArray(req.body.stopCommands)
           ? req.body.stopCommands.filter((cmd: unknown): cmd is string => typeof cmd === "string")
           : currentServer.stopCommands,
+        scheduledCommands: Array.isArray(req.body.scheduledCommands)
+          ? req.body.scheduledCommands
+          : currentServer.scheduledCommands,
       };
 
       const newServers = [...currentConfig.servers];
@@ -177,7 +181,8 @@ export function createServersConfigRouter(cliConfigPath?: string): express.Route
       };
 
       const saved = await saveServersConfig(newConfig);
-      res.json(updatedServer);
+      const savedServer = saved.servers.find((server) => server.id === updatedServer.id);
+      res.json(savedServer ?? updatedServer);
     } catch (error) {
       sendRouteError(error, res);
     }

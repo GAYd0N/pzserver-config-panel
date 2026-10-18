@@ -4,7 +4,22 @@ import { initTheme } from "./theme.js";
 import { loadConfig, renderConfig, saveConfigHandler, toggleCollapse } from "./config.js";
 import { addListItem, hideDialog, confirmAddItem, autoSortMods, hasPendingDeletions, quickAddFromText } from "./mods.js";
 import { reconnectTerminal, clearTerminal, sendCommands, handleTerminalInput, handleTerminalChange, hideSuggestions } from "./terminal.js";
-import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig } from "./server-manager.js";
+import { loadServersConfig, loadRuntimeStatus, startServer, stopServer, forceStopServer, restartServer, saveGlobalConfig, startUptimeTimer } from "./server-manager.js";
+import { addScheduledCommand, closeScheduledCommandDialog, confirmScheduledCommand } from "./scheduled-commands.js";
+
+let hasAutoConnectedTerminal = false;
+
+function tryAutoConnectTerminal() {
+  if (hasAutoConnectedTerminal) return;
+
+  const runtime = state.runtimeSnapshot?.servers?.find(
+    (item) => item.serverId === state.currentServerId,
+  );
+  if (runtime?.status !== "running") return;
+
+  hasAutoConnectedTerminal = true;
+  reconnectTerminal();
+}
 
 function switchTab(tabName) {
   document.querySelectorAll(".tab-button").forEach((button) => {
@@ -16,6 +31,10 @@ function switchTab(tabName) {
 
   document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.add("active");
   document.getElementById(`${tabName}-tab`).classList.add("active");
+
+  if (tabName === "console") {
+    tryAutoConnectTerminal();
+  }
 
   if ((tabName === "config" || tabName === "mods") && (!state.configData || (!state.isDirty && !hasPendingDeletions()))) {
     loadConfig();
@@ -45,6 +64,9 @@ async function init() {
 
   await loadRuntimeStatus();
 
+  tryAutoConnectTerminal();
+
+  startUptimeTimer();
   setInterval(loadRuntimeStatus, 2000);
 
   document.getElementById("backButton").addEventListener("click", goBack);
@@ -95,7 +117,22 @@ async function init() {
 
   document.getElementById("saveGlobalConfigBtn").addEventListener("click", saveGlobalConfig);
 
-  document.querySelectorAll(".add-button").forEach((button) => {
+  const addScheduledCommandBtn = document.getElementById("addScheduledCommandBtn");
+  if (addScheduledCommandBtn) {
+    addScheduledCommandBtn.addEventListener("click", addScheduledCommand);
+  }
+
+  document.getElementById("closeScheduledCommandDialog").addEventListener("click", closeScheduledCommandDialog);
+  document.getElementById("cancelScheduledCommandDialog").addEventListener("click", closeScheduledCommandDialog);
+  document.getElementById("confirmScheduledCommandDialog").addEventListener("click", confirmScheduledCommand);
+
+  document.getElementById("scheduledCommandDialog").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) {
+      closeScheduledCommandDialog();
+    }
+  });
+
+  document.querySelectorAll(".add-button[data-type]").forEach((button) => {
     button.addEventListener("click", () => {
       addListItem(button.dataset.type);
     });
@@ -120,6 +157,7 @@ async function init() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       hideDialog();
+      closeScheduledCommandDialog();
       hideSuggestions();
     }
   });

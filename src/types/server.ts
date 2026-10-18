@@ -5,12 +5,25 @@ export type ServerGlobalConfig = {
   forceKillTimeoutMs: number;
 };
 
+export const SCHEDULED_ACTIONS = ["start", "stop", "force-stop", "restart"] as const;
+
+export type ScheduledAction = (typeof SCHEDULED_ACTIONS)[number];
+
+export type ScheduledCommand = {
+  id: string;
+  name: string;
+  action: ScheduledAction;
+  cron: string;
+  enabled: boolean;
+};
+
 export type ServerInstance = {
   id: string;
   name: string;
   iniPath: string;
   startArgs: string[];
   stopCommands: string[];
+  scheduledCommands: ScheduledCommand[];
 };
 
 export type ServersConfig = {
